@@ -78,8 +78,6 @@ interface ExtendedRequisition extends Requisition {
   }>;
 }
 
-import { API_BASE_URL } from '../config';
-
 interface Fond {
   devise: 'USD' | 'CDF';
   solde: number;
