@@ -57,6 +57,7 @@ import autoTable from 'jspdf-autotable';
 import api from '../services/api';
 import { getLogoBase64 } from '../utils/logoUtils';
 import { Requisition, RequisitionItem } from '../services/RequisitionService';
+import { API_BASE_URL } from '../config';
 
 // Interface étendue pour inclure les propriétés spécifiques à la vue détaillée
 interface ExtendedRequisition extends Requisition {
@@ -77,10 +78,11 @@ interface ExtendedRequisition extends Requisition {
   }>;
 }
 
+import { API_BASE_URL } from '../config';
+
 interface Fond {
-  id: number;
   devise: 'USD' | 'CDF';
-  montant_disponible: number;
+  solde: number;
   updated_at: string;
 }
 
@@ -92,8 +94,6 @@ interface Mouvement {
   description: string;
   created_at: string;
 }
-
-import { API_BASE_URL } from '../config';
 
 const FundsPage: React.FC = () => {
   const navigate = useNavigate();
