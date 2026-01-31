@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS requisitions (
   id SERIAL PRIMARY KEY,
-  numero VARCHAR(20) UNIQUE NOT NULL,
+  numero VARCHAR(50) UNIQUE NOT NULL,
   objet TEXT NOT NULL,
   montant_usd DECIMAL(15,2),
   montant_cdf DECIMAL(15,2),

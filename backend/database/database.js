@@ -60,7 +60,20 @@ function initializeDatabasePostgres() {
             const initSql = fs.readFileSync(initSqlPath, 'utf8');
             dbInstance.query(initSql, (err) => {
                 if (err) console.error('❌ Erreur lors de l\'initialisation PostgreSQL:', err.message);
-                else console.log('✅ Schéma PostgreSQL vérifié/initialisé.');
+                else {
+                    console.log('✅ Schéma PostgreSQL vérifié/initialisé.');
+                    // Migration pour augmenter la taille de la colonne numero si nécessaire
+                    dbInstance.query('ALTER TABLE requisitions ALTER COLUMN numero TYPE VARCHAR(50)', (alterErr) => {
+                        if (alterErr) {
+                           // Ignorer si l'erreur est liée au fait que c'est déjà fait ou autre, mais logger
+                           console.log('Note: Vérification/Ajustement de la colonne numero (VARCHAR 50) -', alterErr.message);
+                        } else {
+                           console.log('✅ Colonne numero ajustée à VARCHAR(50).');
+                        }
+                        resolve();
+                    });
+                    return; // Resolve is called inside callback
+                }
                 resolve();
             });
         } else {
