@@ -29,31 +29,66 @@ if (isPostgres) {
   console.log('🔄 Initialisation mode PostgreSQL...');
   
   (async () => {
-    let connectionString = process.env.DATABASE_URL;
+    let poolConfig = {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }, // Force SSL for Render/Cloud
+      connectionTimeoutMillis: 10000 // Timeout après 10s
+    };
+
     try {
       // Manual DNS resolution to force IPv4
       const { URL } = require('url');
-      const parsedUrl = new URL(connectionString);
+      const parsedUrl = new URL(process.env.DATABASE_URL);
       const hostname = parsedUrl.hostname;
       
       if (!hostname.match(/^(\d{1,3}\.){3}\d{1,3}$/)) { // If not already an IP
           console.log(`🔍 Résolution DNS pour ${hostname}...`);
-          const addresses = await dns.promises.resolve4(hostname);
-          if (addresses && addresses.length > 0) {
-            console.log(`✅ Résolution réussie: ${hostname} -> ${addresses[0]}`);
-            parsedUrl.hostname = addresses[0];
-            connectionString = parsedUrl.toString();
+          
+          let ip = null;
+          
+          // Méthode 1: dns.lookup (Système / getaddrinfo)
+          try {
+            ip = await new Promise((resolve, reject) => {
+              dns.lookup(hostname, { family: 4 }, (err, address) => {
+                if (err) reject(err);
+                else resolve(address);
+              });
+            });
+            console.log(`✅ Résolution système (IPv4): ${ip}`);
+          } catch (e) {
+            console.warn(`⚠️ Echec lookup système: ${e.message}`);
+          }
+
+          // Méthode 2: Google DNS (si système échoue)
+          if (!ip) {
+             console.log('🔄 Tentative avec Google DNS (8.8.8.8)...');
+             try {
+               dns.setServers(['8.8.8.8', '8.8.4.4']);
+               const addresses = await dns.promises.resolve4(hostname);
+               if (addresses && addresses.length > 0) {
+                 ip = addresses[0];
+                 console.log(`✅ Résolution Google DNS (IPv4): ${ip}`);
+               }
+             } catch (e) {
+               console.warn(`⚠️ Echec Google DNS: ${e.message}`);
+             }
+          }
+
+          if (ip) {
+            // Important: On utilise l'IP pour la connexion, MAIS on garde le hostname pour le SNI (SSL)
+            // Sinon la connexion SSL échouera ou sera mal routée par Supabase
+            poolConfig.host = ip;
+            poolConfig.ssl.servername = hostname;
+            console.log('✅ Configuration connexion: Host IP + SNI Hostname appliqué.');
+          } else {
+            console.error('❌ AUCUNE adresse IPv4 trouvée. La connexion risque d\'échouer sur un réseau IPv6-only incompatible.');
           }
       }
     } catch (e) {
-      console.warn(`⚠️ Erreur résolution DNS manuelle: ${e.message}. Utilisation de l'URL originale.`);
+      console.warn(`⚠️ Erreur logique DNS: ${e.message}. Utilisation configuration par défaut.`);
     }
 
-    dbInstance = new Pool({
-      connectionString: connectionString,
-      ssl: { rejectUnauthorized: false }, // Force SSL for Render/Cloud
-      connectionTimeoutMillis: 10000 // Timeout après 10s
-    });
+    dbInstance = new Pool(poolConfig);
     
     // Test connection and Init
     dbInstance.connect((err, client, release) => {
