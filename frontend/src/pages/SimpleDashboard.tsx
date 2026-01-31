@@ -103,18 +103,24 @@ const SimpleDashboard: React.FC = () => {
             });
 
             if (response.ok) {
-              const data = await response.json();
-              if (Array.isArray(data)) {
-                allRequisitions = data.map((req: any) => {
-                  if (req.statut === 'valide') req.statut = 'validee';
-                  if (req.statut === 'refuse') req.statut = 'refusee';
-                  return req;
-                });
-              } else {
-                console.error('Format de données inattendu:', data);
-                allRequisitions = [];
-              }
-            } else {
+        const text = await response.text();
+        try {
+          const data = JSON.parse(text);
+          if (Array.isArray(data)) {
+            allRequisitions = data.map((req: any) => {
+              if (req.statut === 'valide') req.statut = 'validee';
+              if (req.statut === 'refuse') req.statut = 'refusee';
+              return req;
+            });
+          } else {
+            console.error('Format de données inattendu:', data);
+            allRequisitions = [];
+          }
+        } catch (e) {
+          console.error('Erreur parsing JSON:', e, 'Réponse brute:', text);
+          allRequisitions = [];
+        }
+      } else {
               const requisitionService = RequisitionService.getInstance();
               allRequisitions = requisitionService.getAllRequisitions();
             }
