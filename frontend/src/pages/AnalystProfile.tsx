@@ -54,6 +54,7 @@ import {
   AttachFile,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
 import RequisitionService, { Requisition } from '../services/RequisitionService';
 
@@ -108,13 +109,14 @@ const AnalystProfile: React.FC = () => {
         return;
       }
 
-      // Récupérer les réquisitions depuis l'API du backendtry {
+      // Récupérer les réquisitions depuis l'API du backend
+      try {
         const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
           headers: {
             'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+            'Content-Type': 'application/json'
+          }
+        });
 
       if (response.ok) {
         const allRequisitions = await response.json();
