@@ -6,12 +6,14 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const isPostgres = !!process.env.DATABASE_URL;
 let dbInstance;
+let dbReadyResolve;
+const dbReady = new Promise(resolve => dbReadyResolve = resolve);
 
 if (isPostgres) {
   console.log('🔄 Initialisation mode PostgreSQL...');
   dbInstance = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    ssl: { rejectUnauthorized: false } // Force SSL for Render/Cloud
   });
   
   // Test connection and Init
@@ -20,8 +22,10 @@ if (isPostgres) {
       console.error('❌ Erreur connexion PostgreSQL:', err.message);
     } else {
       console.log('✅ Connecté à PostgreSQL.');
-      initializeDatabasePostgres();
-      release();
+      initializeDatabasePostgres().then(() => {
+        if (release) release();
+        if (dbReadyResolve) dbReadyResolve();
+      });
     }
   });
 
@@ -43,20 +47,26 @@ if (isPostgres) {
       console.log('✅ Connecté à la base de données SQLite.');
       // Créer les tables si elles n'existent pas
       initializeDatabaseSqlite();
+      if (dbReadyResolve) dbReadyResolve();
     }
   });
 }
 
 // Initialiser la base de données PostgreSQL
 function initializeDatabasePostgres() {
-    const initSqlPath = path.join(__dirname, 'init_postgres.sql');
-    if (fs.existsSync(initSqlPath)) {
-        const initSql = fs.readFileSync(initSqlPath, 'utf8');
-        dbInstance.query(initSql, (err) => {
-            if (err) console.error('❌ Erreur lors de l\'initialisation PostgreSQL:', err.message);
-            else console.log('✅ Schéma PostgreSQL vérifié/initialisé.');
-        });
-    }
+    return new Promise((resolve) => {
+        const initSqlPath = path.join(__dirname, 'init_postgres.sql');
+        if (fs.existsSync(initSqlPath)) {
+            const initSql = fs.readFileSync(initSqlPath, 'utf8');
+            dbInstance.query(initSql, (err) => {
+                if (err) console.error('❌ Erreur lors de l\'initialisation PostgreSQL:', err.message);
+                else console.log('✅ Schéma PostgreSQL vérifié/initialisé.');
+                resolve();
+            });
+        } else {
+            resolve();
+        }
+    });
 }
 
 // Initialiser la base de données SQLite (Code original préservé et encapsulé)
@@ -235,4 +245,4 @@ const dbUtils = {
   }
 };
 
-module.exports = { db: dbInstance, dbUtils };
+module.exports = { db: dbInstance, dbUtils, dbReady };

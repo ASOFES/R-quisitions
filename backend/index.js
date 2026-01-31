@@ -32,6 +32,7 @@ const zoneRoutes = require('./routes/zones');
 const settingsRoutes = require('./routes/settings');
 const siteRoutes = require('./routes/sites');
 const WorkflowService = require('./services/WorkflowService');
+const { dbReady } = require('./database/database');
 
 // Utiliser les routes
 app.use('/api/auth', authRoutes);
@@ -69,6 +70,22 @@ io.on('connection', (socket) => {
 // Route par défaut
 app.get('/', (req, res) => {
   res.json({ message: 'API de gestion des réquisitions' });
+});
+
+app.get('/api/debug-db', async (req, res) => {
+  try {
+    await dbReady;
+    const isPostgres = !!process.env.DATABASE_URL;
+    res.json({
+      message: 'Database Debug Info',
+      env: process.env.NODE_ENV,
+      isPostgres: isPostgres,
+      databaseUrlPresent: !!process.env.DATABASE_URL,
+      databaseUrlType: process.env.DATABASE_URL ? (process.env.DATABASE_URL.includes('render') ? 'render-internal' : 'external') : 'none'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Middleware de gestion d'erreurs

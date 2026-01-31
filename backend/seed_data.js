@@ -1,8 +1,10 @@
-const { dbUtils } = require('./database/database');
+const { dbUtils, dbReady } = require('./database/database');
 const bcrypt = require('bcryptjs');
 
 async function seedData() {
     try {
+        console.log('⏳ Attente de l\'initialisation de la DB...');
+        await dbReady;
         console.log('🌱 Début du peuplement des données...');
 
         // 1. Seed Zones
@@ -89,5 +91,5 @@ async function seedData() {
     }
 }
 
-// Allow DB connection to establish
-setTimeout(seedData, 1000);
+// Start seeding
+seedData();
