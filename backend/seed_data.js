@@ -81,12 +81,12 @@ async function seedData() {
                 );
                 console.log(`✅ Utilisateur ${user.username} ajouté.`);
             } else {
-                // Mise à jour du mot de passe pour s'assurer qu'il est synchronisé
+                // Mise à jour du mot de passe et activation pour s'assurer qu'il est synchronisé
                 await dbUtils.run(
-                    'UPDATE users SET password = ? WHERE id = ?',
+                    'UPDATE users SET password = ?, actif = TRUE WHERE id = ?',
                     [passwordHash, existing.id]
                 );
-                console.log(`🔄 Utilisateur ${user.username} mis à jour (mot de passe).`);
+                console.log(`🔄 Utilisateur ${user.username} mis à jour (mot de passe et actif).`);
             }
         }
 
