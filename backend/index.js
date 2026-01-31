@@ -27,6 +27,49 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Proxy pour les fichiers uploads (gestion hybride Local/Supabase)
+app.get('/uploads/:filename', async (req, res, next) => {
+  const filename = req.params.filename;
+  const localPath = path.join(__dirname, 'uploads', filename);
+  
+  // Si le fichier existe localement, laisser express.static le servir
+  if (fs.existsSync(localPath)) {
+    return next();
+  }
+  
+  // Sinon, essayer de le récupérer depuis Supabase
+  try {
+    const StorageService = require('./services/StorageService');
+    // On vérifie d'abord si Supabase est configuré
+    if (!process.env.SUPABASE_URL) return next();
+
+    const buffer = await StorageService.getFileBuffer(filename);
+    
+    // Déterminer le type MIME simple
+    const ext = path.extname(filename).toLowerCase();
+    const mimeTypes = {
+      '.pdf': 'application/pdf',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.doc': 'application/msword',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xls': 'application/vnd.ms-excel',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.txt': 'text/plain'
+    };
+    
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+    res.send(buffer);
+  } catch (err) {
+    // Si pas trouvé dans Supabase non plus
+    // console.log(`Fichier ${filename} non trouvé dans Supabase`);
+    next();
+  }
+});
+
 // Servir les fichiers statiques (uploads)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
