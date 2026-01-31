@@ -1,0 +1,22 @@
+INSTRUCTIONS DE CONFIGURATION RENDER (SUPABASE) - MIS A JOUR
+
+Pour finaliser la connexion avec votre projet Supabase (https://supabase.com/dashboard/project/zrzlgybewniufwhpdnpb), vous devez ajouter les variables d'environnement suivantes dans votre tableau de bord Render :
+
+1. Allez dans votre service Render > "Environment"
+2. Ajoutez/Modifiez les variables suivantes (Copiez exactement ces valeurs) :
+
+Variable : DATABASE_URL
+Valeur   : postgres://postgres:+243995178105@db.zrzlgybewniufwhpdnpb.supabase.co:5432/postgres
+
+Variable : SUPABASE_URL
+Valeur   : https://zrzlgybewniufwhpdnpb.supabase.co
+
+Variable : SUPABASE_KEY
+Valeur   : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyemxneWJld25pdWZ3aHBkbnBiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4OTE1NzgsImV4cCI6MjA4NTQ2NzU3OH0.CotdmEWvTtLXXZw0pTPBUKAkQil0CI7joUATa-w2HNs
+
+3. Redéployez le service (Manual Deploy > Deploy latest commit) si cela ne se fait pas automatiquement.
+
+NOTE :
+- Le système détectera automatiquement la base PostgreSQL et créera les tables nécessaires.
+- Les fichiers (PDF, images) seront stockés dans le Storage Supabase (Bucket 'requisitions').
+- Les utilisateurs par défaut (admin, toto, edla.m, etc.) seront recréés automatiquement.
