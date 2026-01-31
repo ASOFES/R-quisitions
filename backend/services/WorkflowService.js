@@ -116,14 +116,22 @@ class WorkflowService {
         if (niveau === 'comptable') continue; // Pas de validation auto pour le paiement (sécurité)
 
         // Trouver les réquisitions bloquées à ce niveau depuis plus de X minutes
-        // SQLite: strftime('%s', 'now') - strftime('%s', updated_at) donne la diff en secondes
-        // delai est en minutes, donc delai * 60
+        const isPostgres = !!process.env.DATABASE_URL;
+        let timeDiffCondition;
+        if (isPostgres) {
+             // Postgres: EXTRACT(EPOCH FROM (NOW() - updated_at)) returns seconds
+             timeDiffCondition = "EXTRACT(EPOCH FROM (NOW() - updated_at)) > ?";
+        } else {
+             // SQLite: strftime('%s', 'now') - strftime('%s', updated_at) returns seconds
+             timeDiffCondition = "(strftime('%s', 'now') - strftime('%s', updated_at)) > ?";
+        }
+
         const query = `
             SELECT id, numero, niveau, updated_at 
             FROM requisitions 
             WHERE niveau = ? 
             AND statut NOT IN ('brouillon', 'a_corriger', 'payee', 'termine', 'annulee', 'validee')
-            AND (strftime('%s', 'now') - strftime('%s', updated_at)) > ?
+            AND ${timeDiffCondition}
         `;
         
         const requisitions = await dbUtils.all(query, [niveau, delai * 60]);

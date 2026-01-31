@@ -4,6 +4,7 @@ const path = require('path');
 const { dbUtils } = require('../database/database');
 const { authenticateToken, requireRole, checkRequisitionAccess } = require('../middleware/auth');
 const PdfService = require('../services/PdfService');
+const WorkflowService = require('../services/WorkflowService');
 
 const router = express.Router();
 
