@@ -5,7 +5,7 @@ const path = require('path');
 const API_URL = process.env.API_URL || 'http://localhost:5000/api';
 
 // Utilisateur Emetteur
-const user = { username: 'edla.m', password: 'password' };
+const user = { username: 'edla.m', password: 'password123' };
 
 async function login() {
   console.log(`🔐 Connexion de ${user.username}...`);
@@ -25,7 +25,26 @@ async function login() {
   return data.token;
 }
 
-async function createRequisition(token) {
+async function getFirstServiceId(token) {
+  console.log('🔍 Récupération des services...');
+  const response = await fetch(`${API_URL}/services`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+
+  if (!response.ok) {
+    throw new Error('Impossible de récupérer les services');
+  }
+
+  const services = await response.json();
+  if (services.length === 0) {
+    throw new Error('Aucun service trouvé dans la base de données');
+  }
+
+  console.log(`✅ Service trouvé: ${services[0].nom} (ID: ${services[0].id})`);
+  return services[0].id;
+}
+
+async function createRequisition(token, serviceId) {
   console.log('📝 Simulation Frontend: Création réquisition avec FormData...');
 
   const formData = new FormData();
@@ -34,7 +53,7 @@ async function createRequisition(token) {
   formData.append('objet', 'Test Frontend Simulation ' + Date.now());
   formData.append('montant_usd', '150.00');
   formData.append('commentaire_initial', 'Ceci est un test simulant le frontend avec FormData et fichiers.');
-  formData.append('service_id', '1'); // Supposons service ID 1
+  formData.append('service_id', serviceId.toString());
   
   // 2. Items (JSON String)
   const items = [
@@ -89,7 +108,8 @@ async function createRequisition(token) {
 async function run() {
   try {
     const token = await login();
-    await createRequisition(token);
+    const serviceId = await getFirstServiceId(token);
+    await createRequisition(token, serviceId);
     console.log('🎉 Test Frontend Simulation RÉUSSI');
   } catch (error) {
     console.error('❌ ECHEC du test:', error);
