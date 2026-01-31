@@ -1,8 +1,13 @@
 const sqlite3 = require('sqlite3').verbose();
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
+
+// Force timestamps to be returned as strings (compatibility with SQLite behavior)
+// This prevents frontend crashes when switching from SQLite (strings) to Postgres (Date objects)
+types.setTypeParser(1114, str => str); // TIMESTAMP
+types.setTypeParser(1184, str => str); // TIMESTAMPTZ
 
 const isPostgres = !!process.env.DATABASE_URL;
 let dbInstance;

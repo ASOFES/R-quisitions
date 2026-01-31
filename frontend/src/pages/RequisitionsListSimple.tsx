@@ -119,39 +119,47 @@ const RequisitionsList: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        const formattedRequisitions = data.map((req: any) => {
-          // Normalisation des statuts pour le frontend
-          let statut = req.statut;
-          if (statut === 'valide') statut = 'validee';
-          if (statut === 'refuse') statut = 'refusee';
+        console.log('Données reçues:', data);
+        
+        if (Array.isArray(data)) {
+          const formattedRequisitions = data.map((req: any) => {
+            // Normalisation des statuts pour le frontend
+            let statut = req.statut;
+            if (statut === 'valide') statut = 'validee';
+            if (statut === 'refuse') statut = 'refusee';
 
-          return {
-            id: req.id,
-            reference: req.numero,
-            objet: req.objet,
-            description: req.commentaire_initial || '',
-            montant: req.montant_usd || req.montant_cdf || 0,
-            devise: req.montant_usd ? 'USD' : 'CDF',
-            urgence: 'normale', // Default as it might be missing
-            statut: statut,
-            created_at: req.created_at,
-            updated_at: req.updated_at,
-            emetteur_id: req.emetteur_id,
-            emetteur_nom: req.emetteur_nom,
-            service_id: req.service_id,
-            service_nom: req.service_nom,
-            niveau: req.niveau,
-            pieces_jointes: req.pieces?.map((p: any) => p.nom_fichier) || [],
-            pieces_jointes_data: req.pieces || [],
-            nb_pieces: req.nb_pieces || 0,
-            analyses: [],
-            actions: req.actions || [],
-            related_to: req.related_to,
-            response_chain: req.response_chain
-          };
-        });
-        setRequisitions(formattedRequisitions);
+            return {
+              id: req.id,
+              reference: req.numero || 'N/A',
+              objet: req.objet || 'Sans objet',
+              description: req.commentaire_initial || '',
+              montant: req.montant_usd || req.montant_cdf || 0,
+              devise: req.montant_usd ? 'USD' : 'CDF',
+              urgence: (req.urgence as 'basse' | 'normale' | 'haute' | 'critique') || 'normale',
+              statut: statut,
+              created_at: req.created_at,
+              updated_at: req.updated_at,
+              emetteur_id: req.emetteur_id,
+              emetteur_nom: req.emetteur_nom || 'Inconnu',
+              service_id: req.service_id,
+              service_nom: req.service_nom || 'Inconnu',
+              niveau: req.niveau,
+              pieces_jointes: Array.isArray(req.pieces) ? req.pieces.map((p: any) => p.nom_fichier) : [],
+              pieces_jointes_data: req.pieces || [],
+              nb_pieces: req.nb_pieces || 0,
+              analyses: [],
+              actions: req.actions || [],
+              related_to: req.related_to,
+              response_chain: req.response_chain
+            };
+          });
+          setRequisitions(formattedRequisitions);
+        } else {
+          console.error('Format de données inattendu:', data);
+          setRequisitions([]);
+        }
       } else {
+        console.error('Erreur réponse API:', response.status);
         // Fallback
         const requisitionService = RequisitionService.getInstance();
         setRequisitions(requisitionService.getAllRequisitions());
@@ -422,13 +430,13 @@ const RequisitionsList: React.FC = () => {
   const filteredRequisitions = requisitions.filter(req => {
     const matchesStatus = filterStatus === 'all' || req.statut === filterStatus;
     const matchesUrgence = filterUrgence === 'all' || req.urgence === filterUrgence;
-    const matchesSearch = req.objet.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          req.reference.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (req.objet || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (req.reference || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     // Date filtering
     let matchesDate = true;
     if (startDate || endDate) {
-      const reqDate = req.created_at ? req.created_at.substring(0, 10) : '';
+      const reqDate = req.created_at ? String(req.created_at).substring(0, 10) : '';
       if (startDate && reqDate < startDate) matchesDate = false;
       if (endDate && reqDate > endDate) matchesDate = false;
     }

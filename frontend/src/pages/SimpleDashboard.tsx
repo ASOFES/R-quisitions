@@ -104,11 +104,16 @@ const SimpleDashboard: React.FC = () => {
 
             if (response.ok) {
               const data = await response.json();
-              allRequisitions = data.map((req: any) => {
-                if (req.statut === 'valide') req.statut = 'validee';
-                if (req.statut === 'refuse') req.statut = 'refusee';
-                return req;
-              });
+              if (Array.isArray(data)) {
+                allRequisitions = data.map((req: any) => {
+                  if (req.statut === 'valide') req.statut = 'validee';
+                  if (req.statut === 'refuse') req.statut = 'refusee';
+                  return req;
+                });
+              } else {
+                console.error('Format de données inattendu:', data);
+                allRequisitions = [];
+              }
             } else {
               const requisitionService = RequisitionService.getInstance();
               allRequisitions = requisitionService.getAllRequisitions();

@@ -73,7 +73,7 @@ router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res
     const lineCount = await dbUtils.get('SELECT COUNT(*) as count FROM lignes_requisition WHERE site_id = ?', [id]);
 
     if (reqCount.count > 0 || lineCount.count > 0) {
-      // Si utilisé, soft delete
+      // If used, soft delete
       await dbUtils.run('UPDATE sites SET actif = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
       res.json({ message: 'Site désactivé (car utilisé dans des réquisitions)' });
     } else {
