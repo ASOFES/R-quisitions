@@ -24,31 +24,28 @@ import {
   Stack,
   InputAdornment,
   TablePagination,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
+  IconButton,
   Tabs,
   Tab,
-  Divider,
-  IconButton
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Divider
 } from '@mui/material';
 import { 
   ArrowBack, 
   AddCircleOutline, 
-  AttachMoney, 
   History,
   TrendingUp,
   TrendingDown,
   FileDownload,
   PictureAsPdf,
   Search as SearchIcon,
-  Description,
-  Person,
-  Business,
-  AttachFile,
+  Visibility,
   Close,
-  Visibility
+  AttachFile,
+  AttachMoney
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -344,7 +341,7 @@ const FundsPage: React.FC = () => {
   };
 
   const getFondByDevise = (devise: string) => {
-    return fonds.find(f => f.devise === devise)?.montant_disponible || 0;
+    return fonds.find(f => f.devise === devise)?.solde || 0;
   };
 
   if (loading && fonds.length === 0) {

@@ -34,11 +34,9 @@ import {
   Cancel,
   Place
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { sitesAPI, Site } from '../services/api';
 
 const SitesManagement: React.FC = () => {
-  const navigate = useNavigate();
   const theme = useTheme();
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);

@@ -17,12 +17,11 @@ import {
   Chip,
   Alert,
   CircularProgress,
-  IconButton,
-  LinearProgress,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
+  IconButton,
 } from '@mui/material';
 import {
   Person,
@@ -110,12 +109,12 @@ const AnalystProfile: React.FC = () => {
       }
 
       // Récupérer les réquisitions depuis l'API du backend
-      const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+        const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
       if (response.ok) {
         const allRequisitions = await response.json();
@@ -245,375 +244,410 @@ const AnalystProfile: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const filteredRequisitions = recentRequisitions.filter(req => {
+    const statusMatch = filterStatus === 'all' || req.statut === filterStatus;
+    const urgenceMatch = filterUrgence === 'all' || req.urgence === filterUrgence;
+    return statusMatch && urgenceMatch;
+  });
+
+  // Grouper les réquisitions par émetteur
+  const requisitionsByEmitter = recentRequisitions.reduce((acc, req) => {
+    const emitterName = req.emetteur_nom || 'Inconnu';
+    if (!acc[emitterName]) {
+      acc[emitterName] = [];
+    }
+    acc[emitterName].push(req);
+    return acc;
+  }, {} as Record<string, Requisition[]>);
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
-      </Box>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Alert severity="error">Impossible de charger le profil</Alert>
+      </Container>
     );
   }
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* En-tête avec bouton retour */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
-          <ArrowBack />
-        </IconButton>
-        <Typography variant="h4" component="h1" sx={{ flexGrow: 1, fontWeight: 'bold', color: '#1a237e' }}>
-          Profil Analyste
-        </Typography>
-        <Button 
-          variant="outlined" 
-          color="error" 
-          startIcon={<Logout />}
-          onClick={handleLogout}
-        >
+      {/* En-tête */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Button onClick={() => navigate('/dashboard')} startIcon={<ArrowBack />} sx={{ mr: 2 }}>
+            Retour
+          </Button>
+          <Typography variant="h4">Mon Profil Analyste</Typography>
+        </Box>
+        <Button variant="outlined" color="error" onClick={handleLogout} startIcon={<Logout />}>
           Déconnexion
         </Button>
       </Box>
 
       {showSuccess && (
-        <Alert severity="success" sx={{ mb: 3 }}>
-          Profil mis à jour avec succès !
+        <Alert severity="success" sx={{ mb: 2 }}>
+          Profil mis à jour avec succès!
         </Alert>
       )}
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 3 }}>
-        {/* Colonne de gauche : Informations personnelles */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {/* Carte Profil */}
-          <Card elevation={3} sx={{ borderRadius: 2 }}>
-            <CardContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3 }}>
-              <Avatar 
-                sx={{ 
-                  width: 120, 
-                  height: 120, 
-                  bgcolor: '#1a237e', 
-                  mb: 2,
-                  fontSize: '3rem'
-                }}
-              >
-                {profile?.prenom?.charAt(0)}{profile?.nom?.charAt(0)}
-              </Avatar>
-              
-              {editMode ? (
-                <Box sx={{ width: '100%', mt: 2 }}>
-                  <TextField
-                    fullWidth
-                    label="Prénom"
-                    value={formData.prenom || ''}
-                    onChange={(e) => setFormData({...formData, prenom: e.target.value})}
-                    sx={{ mb: 2 }}
-                    size="small"
+      <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
+        {/* Informations personnelles */}
+        <Box sx={{ flex: { xs: 1, md: 0.4 } }}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Avatar sx={{ width: 64, height: 64, mr: 2, bgcolor: 'primary.main' }}>
+                  <Assessment sx={{ fontSize: 32 }} />
+                </Avatar>
+                <Box>
+                  <Typography variant="h6">{profile.prenom} {profile.nom}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    @{profile.username}
+                  </Typography>
+                  <Chip 
+                    label={profile.role} 
+                    size="small" 
+                    color="primary" 
+                    sx={{ mt: 1 }}
                   />
-                  <TextField
+                </Box>
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+
+              <List dense>
+                <ListItem>
+                  <ListItemIcon><Email /></ListItemIcon>
+                  <ListItemText primary={profile.email} />
+                </ListItem>
+                <ListItem>
+                  <ListItemIcon><Phone /></ListItemIcon>
+                  <ListItemText primary={profile.telephone || 'Non renseigné'} />
+                </ListItem>
+                <ListItem>
+                  <ListItemIcon><Business /></ListItemIcon>
+                  <ListItemText primary={profile.service_nom} />
+                </ListItem>
+                <ListItem>
+                  <ListItemIcon><Work /></ListItemIcon>
+                  <ListItemText primary={`Niveau: ${profile.niveau}`} />
+                </ListItem>
+              </List>
+
+              <Box sx={{ mt: 2 }}>
+                {!editMode ? (
+                  <Button 
+                    variant="contained" 
+                    startIcon={<Edit />}
+                    onClick={handleEdit}
                     fullWidth
-                    label="Nom"
-                    value={formData.nom || ''}
-                    onChange={(e) => setFormData({...formData, nom: e.target.value})}
-                    sx={{ mb: 2 }}
-                    size="small"
-                  />
-                  <TextField
-                    fullWidth
-                    label="Téléphone"
-                    value={formData.telephone || ''}
-                    onChange={(e) => setFormData({...formData, telephone: e.target.value})}
-                    sx={{ mb: 2 }}
-                    size="small"
-                  />
-                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mt: 1 }}>
+                  >
+                    Modifier le profil
+                  </Button>
+                ) : (
+                  <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button 
                       variant="contained" 
-                      color="primary" 
                       startIcon={<Save />}
                       onClick={handleSave}
-                      size="small"
+                      sx={{ flex: 1 }}
                     >
                       Enregistrer
                     </Button>
                     <Button 
                       variant="outlined" 
-                      color="secondary" 
                       startIcon={<Cancel />}
                       onClick={handleCancel}
-                      size="small"
+                      sx={{ flex: 1 }}
                     >
                       Annuler
                     </Button>
                   </Box>
-                </Box>
-              ) : (
-                <>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-                    {profile?.prenom} {profile?.nom}
-                  </Typography>
-                  <Chip 
-                    label="Analyste Financier" 
-                    color="primary" 
-                    size="small" 
-                    sx={{ mb: 2 }} 
-                  />
-                  
-                  <List dense sx={{ width: '100%' }}>
-                    <ListItem>
-                      <ListItemIcon><Email color="action" /></ListItemIcon>
-                      <ListItemText primary={profile?.email} secondary="Email professionnel" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><Phone color="action" /></ListItemIcon>
-                      <ListItemText primary={profile?.telephone || 'Non renseigné'} secondary="Téléphone" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><Business color="action" /></ListItemIcon>
-                      <ListItemText primary={profile?.service_nom} secondary="Service" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><Work color="action" /></ListItemIcon>
-                      <ListItemText primary={profile?.role} secondary="Rôle" />
-                    </ListItem>
-                  </List>
-
-                  <Button 
-                    variant="outlined" 
-                    startIcon={<Edit />} 
-                    fullWidth 
-                    sx={{ mt: 2 }}
-                    onClick={handleEdit}
-                  >
-                    Modifier le profil
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Statistiques Rapides */}
-          <Card elevation={3} sx={{ borderRadius: 2 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                <Assessment sx={{ mr: 1 }} /> Performance
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              
-              <Box sx={{ mb: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2" color="text.secondary">Taux de validation</Typography>
-                  <Typography variant="body2" fontWeight="bold">{profile?.taux_validation}%</Typography>
-                </Box>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={profile?.taux_validation || 0} 
-                  color="success" 
-                  sx={{ height: 8, borderRadius: 5 }}
-                />
-              </Box>
-
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                <Box sx={{ textAlign: 'center', p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                  <Typography variant="h4" color="primary.main" fontWeight="bold">
-                    {profile?.total_requisitions_analysees}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Total Analysé
-                  </Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center', p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                  <Typography variant="h4" color="warning.main" fontWeight="bold">
-                    {profile?.requisitions_en_attente}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    En Attente
-                  </Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center', p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                  <Typography variant="h4" color="success.main" fontWeight="bold">
-                    {profile?.requisitions_approuvees}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Approuvées
-                  </Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center', p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                  <Typography variant="h4" color="error.main" fontWeight="bold">
-                    {profile?.requisitions_rejetees}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Rejetées
-                  </Typography>
-                </Box>
+                )}
               </Box>
             </CardContent>
           </Card>
         </Box>
 
-        {/* Colonne de droite : Tableau de bord et Activité */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {/* Métriques Financières */}
-          <Card elevation={3} sx={{ borderRadius: 2 }}>
+        {/* Statistiques et formulaire d'édition */}
+        <Box sx={{ flex: { xs: 1, md: 0.6 } }}>
+          {/* Statistiques principales */}
+          <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                <AccountBalance sx={{ mr: 1 }} /> Métriques Financières
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                <AccountBalance sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Mes Statistiques d'Analyse
               </Typography>
-              <Divider sx={{ mb: 2 }} />
-              
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
-                <Paper elevation={0} sx={{ p: 2, bgcolor: '#e3f2fd', borderRadius: 2, display: 'flex', alignItems: 'center' }}>
-                  <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
-                    <MonetizationOn />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">Montant Total Analysé</Typography>
-                    <Typography variant="h6" fontWeight="bold">
-                      {profile?.montant_total_analyse.toLocaleString()} $
-                    </Typography>
-                  </Box>
-                </Paper>
-                
-                <Paper elevation={0} sx={{ p: 2, bgcolor: '#e8f5e9', borderRadius: 2, display: 'flex', alignItems: 'center' }}>
-                  <Avatar sx={{ bgcolor: 'success.main', mr: 2 }}>
-                    <TrendingUp />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">Moyenne par Réquisition</Typography>
-                    <Typography variant="h6" fontWeight="bold">
-                      {profile?.moyenne_montant.toLocaleString()} $
-                    </Typography>
-                  </Box>
-                </Paper>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="h4" color="primary">
+                    {profile.total_requisitions_analysees}
+                  </Typography>
+                  <Typography variant="body2">Total à analyser</Typography>
+                </Box>
+                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'warning.50', borderRadius: 1 }}>
+                  <Typography variant="h4" color="warning.main">
+                    {profile.requisitions_en_attente}
+                  </Typography>
+                  <Typography variant="body2">En attente</Typography>
+                </Box>
+                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'success.50', borderRadius: 1 }}>
+                  <Typography variant="h4" color="success.main">
+                    {profile.requisitions_approuvees}
+                  </Typography>
+                  <Typography variant="body2">Approuvées</Typography>
+                </Box>
+                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'error.50', borderRadius: 1 }}>
+                  <Typography variant="h4" color="error.main">
+                    {profile.requisitions_rejetees}
+                  </Typography>
+                  <Typography variant="body2">Rejetées</Typography>
+                </Box>
+              </Box>
+              <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+                <Box sx={{ flex: 1, textAlign: 'center', p: 2, bgcolor: 'blue.50', borderRadius: 1 }}>
+                  <Typography variant="h5" color="primary">
+                    ${profile.montant_total_analyse.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2">Montant total analysé</Typography>
+                </Box>
+                <Box sx={{ flex: 1, textAlign: 'center', p: 2, bgcolor: 'purple.50', borderRadius: 1 }}>
+                  <Typography variant="h5" color="purple.main">
+                    {Math.round(profile.moyenne_montant).toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2">Moyenne</Typography>
+                </Box>
               </Box>
             </CardContent>
           </Card>
 
-          {/* Filtres et Recherche */}
-          <Paper elevation={1} sx={{ p: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-            <FilterList color="action" />
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Statut</InputLabel>
-              <Select
-                value={filterStatus}
-                label="Statut"
-                onChange={(e) => setFilterStatus(e.target.value)}
-              >
-                <MenuItem value="all">Tous</MenuItem>
-                <MenuItem value="soumise">Soumise</MenuItem>
-                <MenuItem value="validee">Validée</MenuItem>
-                <MenuItem value="refusee">Refusée</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Urgence</InputLabel>
-              <Select
-                value={filterUrgence}
-                label="Urgence"
-                onChange={(e) => setFilterUrgence(e.target.value)}
-              >
-                <MenuItem value="all">Toutes</MenuItem>
-                <MenuItem value="basse">Basse</MenuItem>
-                <MenuItem value="normale">Normale</MenuItem>
-                <MenuItem value="haute">Haute</MenuItem>
-                <MenuItem value="critique">Critique</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <Box sx={{ flexGrow: 1 }} />
-            
-            <TextField
-              placeholder="Rechercher..."
-              size="small"
-              InputProps={{
-                startAdornment: <Search color="action" sx={{ mr: 1 }} />,
-              }}
-            />
-          </Paper>
-
-          {/* Liste des Réquisitions à Analyser */}
-          <Card elevation={3} sx={{ borderRadius: 2 }}>
+          {/* Statistiques globales */}
+          <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Assignment sx={{ mr: 1 }} /> Réquisitions Récentes à Analyser
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                <PieChart sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Vue Globale
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ flex: 1, minWidth: 200, textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="h5" color="primary">
+                    {profile.taux_validation}%
+                  </Typography>
+                  <Typography variant="body2">Taux de validation</Typography>
                 </Box>
-                <Button size="small" endIcon={<ArrowBack sx={{ transform: 'rotate(180deg)' }} />}>
+                <Box sx={{ flex: 1, minWidth: 200, textAlign: 'center', p: 2, bgcolor: 'info.50', borderRadius: 1 }}>
+                  <Typography variant="h5" color="info.main">
+                    {profile.requisitions_approuvees}
+                  </Typography>
+                  <Typography variant="body2">Total validées</Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
+          {/* Formulaire d'édition */}
+          {editMode && (
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  <Settings sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Modifier mes informations
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                    <TextField
+                      fullWidth
+                      label="Nom"
+                      value={formData.nom || ''}
+                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                    />
+                    <TextField
+                      fullWidth
+                      label="Prénom"
+                      value={formData.prenom || ''}
+                      onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+                    />
+                  </Box>
+                  <TextField
+                    fullWidth
+                    label="Téléphone"
+                    value={formData.telephone || ''}
+                    onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
+                  />
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Réquisitions à analyser */}
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  <FilterList sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Réquisitions à Analyser
+                </Typography>
+                <Button 
+                  variant="outlined" 
+                  size="small"
+                  onClick={() => navigate('/requisitions')}
+                >
                   Voir tout
                 </Button>
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
+              </Box>
               
-              {recentRequisitions.length > 0 ? (
-                <List>
-                  {recentRequisitions.map((req) => (
-                    <Paper key={req.id} variant="outlined" sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
-                      <ListItem 
-                        alignItems="flex-start"
-                        secondaryAction={
-                          <IconButton edge="end" aria-label="voir" onClick={() => navigate(`/requisitions/${req.id}`)}>
-                            <Visibility />
-                          </IconButton>
-                        }
-                      >
+              {/* Filtres */}
+              <Paper sx={{ p: 2, mb: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <InputLabel>Statut</InputLabel>
+                    <Select
+                      value={filterStatus}
+                      label="Statut"
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                    >
+                      <MenuItem value="all">Tous les statuts</MenuItem>
+                      <MenuItem value="brouillon">Brouillon</MenuItem>
+                      <MenuItem value="soumise">Soumise</MenuItem>
+                      <MenuItem value="en_cours">En cours</MenuItem>
+                      <MenuItem value="validee">Validée</MenuItem>
+                      <MenuItem value="refusee">Refusée</MenuItem>
+                      <MenuItem value="payee">Payée</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <InputLabel>Urgence</InputLabel>
+                    <Select
+                      value={filterUrgence}
+                      label="Urgence"
+                      onChange={(e) => setFilterUrgence(e.target.value)}
+                    >
+                      <MenuItem value="all">Toutes les urgences</MenuItem>
+                      <MenuItem value="basse">Basse</MenuItem>
+                      <MenuItem value="normale">Normale</MenuItem>
+                      <MenuItem value="haute">Haute</MenuItem>
+                      <MenuItem value="critique">Critique</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Paper>
+              
+              {filteredRequisitions.length > 0 ? (
+                <>
+                  {/* Vue groupée par émetteur */}
+                  <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
+                      Réquisitions par Initiateur
+                    </Typography>
+                    {Object.entries(requisitionsByEmitter).map(([emitterName, emitterReqs]) => (
+                      <Box key={emitterName} sx={{ mb: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                          {emitterName} ({emitterReqs.length} réquisition{emitterReqs.length > 1 ? 's' : ''})
+                        </Typography>
+                        <Box sx={{ ml: 2, mt: 1 }}>
+                          {emitterReqs.slice(0, 2).map((req) => (
+                            <Typography key={req.id} variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                              • {req.reference} - {req.objet} ({req.statut})
+                            </Typography>
+                          ))}
+                          {emitterReqs.length > 2 && (
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                              ... et {emitterReqs.length - 2} autre{emitterReqs.length - 2 > 1 ? 's' : ''}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    ))}
+                  </Paper>
+
+                  {/* Liste détaillée */}
+                  <List>
+                    {filteredRequisitions.map((requisition) => (
+                      <ListItem key={requisition.id} divider>
+                        <ListItemIcon>
+                          <Description color="primary" />
+                        </ListItemIcon>
                         <ListItemText
                           primary={
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                              <Typography variant="subtitle1" fontWeight="bold">
-                                {req.objet || `Réquisition #${req.id}`}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="subtitle2">
+                                {requisition.reference}
+                              </Typography>
+                              <Typography variant="body2">
+                                {requisition.objet}
                               </Typography>
                               <Chip 
-                                label={getStatutLabel(req.statut)} 
+                                label={requisition.emetteur_nom || 'Inconnu'} 
                                 size="small" 
-                                sx={{ 
-                                  bgcolor: getStatutColor(req.statut) + '20', 
-                                  color: getStatutColor(req.statut),
-                                  fontWeight: 'bold',
-                                  border: `1px solid ${getStatutColor(req.statut)}`
-                                }} 
+                                variant="outlined"
+                                sx={{ ml: 1 }}
                               />
                             </Box>
                           }
                           secondary={
-                            <Box>
-                              <Box sx={{ display: 'flex', gap: 2, mb: 1, mt: 0.5 }}>
-                                <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
-                                  <Schedule fontSize="inherit" sx={{ mr: 0.5 }} />
-                                  {formatDate(req.created_at)}
-                                </Typography>
-                                <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
-                                  <Person fontSize="inherit" sx={{ mr: 0.5 }} />
-                                  {req.emetteur_nom || 'Utilisateur'}
-                                </Typography>
-                                <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', color: getUrgenceColor(req.urgence), fontWeight: 'bold' }}>
-                                  <PriorityHigh fontSize="inherit" sx={{ mr: 0.5 }} />
-                                  {getUrgenceLabel(req.urgence)}
-                                </Typography>
-                              </Box>
-                              <Typography variant="body2" color="text.primary" sx={{ fontWeight: 'bold' }}>
-                                {(req.montant_estime || 0).toLocaleString()} {req.devise}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                              <Chip
+                                label={getStatutLabel(requisition.statut)}
+                                size="small"
+                                sx={{
+                                  backgroundColor: getStatutColor(requisition.statut),
+                                  color: 'white',
+                                }}
+                              />
+                              <Chip
+                                label={getUrgenceLabel(requisition.urgence)}
+                                size="small"
+                                sx={{
+                                  backgroundColor: getUrgenceColor(requisition.urgence),
+                                  color: 'white',
+                                }}
+                              />
+                              <Chip
+                                label={`${(requisition as any).nb_pieces ?? 0} pièce(s)`}
+                                size="small"
+                                icon={<AttachFile sx={{ fontSize: 16 }} />}
+                                variant="outlined"
+                              />
+                              <Typography variant="caption" color="text.secondary">
+                                {requisition.devise} {(requisition.montant_usd || requisition.montant_cdf || 0).toLocaleString()}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(requisition.created_at).toLocaleDateString()}
                               </Typography>
                             </Box>
                           }
                         />
+                        <IconButton 
+                          onClick={() => navigate(`/requisitions/${requisition.id}`)}
+                          color="primary"
+                        >
+                          <Visibility />
+                        </IconButton>
                       </ListItem>
-                    </Paper>
-                  ))}
-                </List>
+                    ))}
+                  </List>
+                </>
               ) : (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <Typography variant="body1" color="text.secondary">
-                    Aucune réquisition à analyser pour le moment.
+                  <Typography variant="body2" color="text.secondary">
+                    Aucune réquisition à analyser
                   </Typography>
+                  <Button 
+                    variant="contained" 
+                    sx={{ mt: 2 }}
+                    onClick={() => navigate('/requisitions')}
+                  >
+                    Voir les réquisitions
+                  </Button>
                 </Box>
               )}
             </CardContent>

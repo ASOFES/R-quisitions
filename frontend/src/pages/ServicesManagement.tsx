@@ -34,12 +34,10 @@ import {
   CheckCircle,
   Cancel
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { servicesAPI } from '../services/api';
 import { Service } from '../services/api';
 
 const ServicesManagement: React.FC = () => {
-  const navigate = useNavigate();
   const theme = useTheme();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
