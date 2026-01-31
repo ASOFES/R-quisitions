@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+
+# Environment variables
+.env
+.env.test
+.env.production
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+backend/database/*.db
+
+# Backend Uploads (keep directory but ignore content)
+backend/uploads/*
+!backend/uploads/.gitkeep
+!backend/uploads/logo.png
+
+# Frontend production build
+frontend/build/
+frontend/dist/
+
+# Misc
+.DS_Store
+.env.backup
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -1,0 +1,467 @@
+# 📋 RÔLES ET FONCTIONNALITÉS - APPLICATION RÉQUISITION
+
+## 🔐 SYSTÈME D'AUTHENTIFICATION
+
+### Utilisateurs Configurés
+| Rôle | Nom d'utilisateur | Mot de passe | Service |
+|------|------------------|--------------|---------|
+| **Admin** | `admin` | `admin123` | ADMIN |
+| **Émetteur** | `edla.m` | `password123` | RH |
+| **Analyste** | `analyste.compta` | `password123` | FIN |
+| **Challenger** | `pm.user` | `password123` | ADMI |
+| **Validateur** | `gm.user` | `password123` | ADMI |
+| **Comptable** | `comptable` | `password123` | FIN |
+
+---
+
+## 👨‍💼 1. RÔLE ADMINISTRATEUR (ADMIN)
+
+### 🎯 Responsabilités
+- Gestion complète du système
+- Configuration des utilisateurs et services
+- Accès à toutes les réquisitions
+- Supervision générale
+
+### 📌 Fonctionnalités Principales
+
+#### A. Gestion des Utilisateurs (`UserManagement.js`)
+- ✅ **Créer** de nouveaux utilisateurs
+  - Nom d'utilisateur (unique)
+  - Mot de passe (crypté avec bcrypt)
+  - Nom complet
+  - Email
+  - Rôle (Admin, Émetteur, Analyste, Challenger, Validateur)
+  - Service d'affectation
+  
+- ✅ **Modifier** les utilisateurs existants
+  - Mise à jour des informations
+  - Changement de mot de passe (optionnel)
+  - Modification du rôle et service
+
+- ✅ **Désactiver** des utilisateurs
+  - Les utilisateurs désactivés ne peuvent plus se connecter
+  - Conservation de l'historique
+
+- ✅ **Visualiser** tous les utilisateurs
+  - Tableau avec statut (Actif/Inactif)
+  - Filtrage et recherche
+  - Codes couleur par rôle
+
+#### B. Gestion des Services (`ServiceManagement.js`)
+- ✅ **Créer** de nouveaux services
+  - ID du service (ex: RH, WH, MT)
+  - Nom complet du service
+  
+- ✅ **Modifier** les services existants
+  - Renommer les services
+  - Mettre à jour les informations
+
+- ✅ **Désactiver** des services
+  - Services inactifs non disponibles pour nouvelles réquisitions
+
+#### C. Accès aux Réquisitions
+- ✅ Voir **TOUTES** les réquisitions (sans filtre)
+- ✅ Accès à tous les niveaux du workflow
+- ✅ Consultation de l'historique complet
+
+### 🔧 API Endpoints Admin
+```
+POST   /api/auth/register          - Créer utilisateur
+GET    /api/auth/users             - Liste des utilisateurs
+PUT    /api/auth/users/:id         - Modifier utilisateur
+DELETE /api/auth/users/:id         - Désactiver utilisateur
+
+POST   /api/services               - Créer service
+GET    /api/services               - Liste des services
+PUT    /api/services/:id           - Modifier service
+DELETE /api/services/:id           - Désactiver service
+```
+
+---
+
+## 📝 2. RÔLE ÉMETTEUR (EMETTEUR)
+
+### 🎯 Responsabilités
+- Créer les réquisitions
+- Suivre l'évolution de ses propres réquisitions
+- Fournir les pièces justificatives
+
+### 📌 Fonctionnalités Principales
+
+#### A. Création de Réquisitions (`RequisitionForm.js`)
+- ✅ **Formulaire de création**
+  - Sélection du service (RH, WH, MT, ADMI, IT, FIN)
+  - Objet de la réquisition (description détaillée)
+  - Montant USD (optionnel)
+  - Montant CDF (optionnel)
+  - Commentaire initial (optionnel)
+  - Pièces jointes (max 5 fichiers, 10MB chacun)
+    - Formats acceptés: PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG, GIF, TXT
+
+- ✅ **Génération automatique**
+  - Numéro de réquisition unique: `REQ-YYYY-MM-XXXX`
+  - Date d'initiation
+  - Émetteur automatiquement identifié
+  - Niveau initial: `émetteur`
+
+#### B. Suivi des Réquisitions (`RequisitionList.js`)
+- ✅ **Visualisation**
+  - Liste de **ses propres réquisitions uniquement**
+  - Statut en temps réel
+  - Indicateurs de progression
+
+- ✅ **Détails de réquisition** (`RequisitionDetail.js`)
+  - Informations complètes
+  - Historique des actions
+  - Chat intégré pour communication
+  - Téléchargement des pièces jointes
+
+#### C. Communication
+- ✅ **Chat en temps réel**
+  - Envoyer des messages
+  - Clarifier les demandes
+  - Répondre aux questions des analystes/validateurs
+
+### 🔧 API Endpoints Émetteur
+```
+POST /api/requisitions                    - Créer réquisition
+GET  /api/requisitions                    - Ses réquisitions uniquement
+POST /api/requisitions/:id/chat           - Envoyer message
+POST /api/requisitions/:id/pieces-jointes - Ajouter pièces jointes
+```
+
+---
+
+## 🔍 3. RÔLE ANALYSTE (ANALYSTE)
+
+### 🎯 Responsabilités
+- Premier niveau de validation après l'émetteur
+- Analyser la conformité des réquisitions
+- Valider ou refuser les demandes
+
+### 📌 Fonctionnalités Principales
+
+#### A. Validation des Réquisitions (`RequisitionDetail.js`)
+- ✅ **Actions disponibles**
+  - **Valider** : Passe au niveau "Challenger" (PM)
+  - **Modifier** : Retourne à l'émetteur pour modifications
+  - **Refuser** : Rejette la réquisition (fin du processus)
+  
+- ✅ **Commentaire obligatoire**
+  - Chaque action nécessite un commentaire
+  - Historique complet des décisions
+
+#### B. Accès aux Réquisitions
+- ✅ Voir les réquisitions à partir du niveau **analyste**
+- ✅ Niveaux accessibles: `analyste`, `challenger`, `validateur`, `paiement`, `justificatif`
+
+#### C. Validation Paiement
+- ✅ **Valider les paiements** effectués par le comptable
+  - Bouton "Valider le Paiement"
+  - Passage au niveau "justificatif"
+
+#### D. Validation Justificatifs
+- ✅ **Terminer les réquisitions**
+  - Vérifier les justificatifs téléchargés
+  - Valider les montants justifiés
+  - Clôturer le dossier
+
+### 🔧 API Endpoints Analyste
+```
+PUT  /api/requisitions/:id/action           - Actions (valider/modifier/refuser)
+POST /api/requisitions/:id/valider-paiement - Valider paiement
+POST /api/requisitions/:id/terminer          - Terminer réquisition
+```
+
+---
+
+## 🎯 4. RÔLE CHALLENGER (PM - Project Manager)
+
+### 🎯 Responsabilités
+- Deuxième niveau de validation
+- Challenge des demandes
+- Vérification de la pertinence
+
+### 📌 Fonctionnalités Principales
+
+#### A. Validation des Réquisitions
+- ✅ **Actions disponibles**
+  - **Valider** : Passe au niveau "Validateur" (GM)
+  - **Modifier** : Retourne à l'analyste
+  - **Refuser** : Rejette la réquisition
+
+- ✅ **Commentaire obligatoire** pour chaque action
+
+#### B. Accès aux Réquisitions
+- ✅ Voir les réquisitions à partir du niveau **challenger**
+- ✅ Niveaux accessibles: `challenger`, `validateur`, `paiement`, `justificatif`
+
+#### C. Historique Financier (`FinancialHistory.js`)
+- ✅ **Consultation des mouvements**
+  - Historique des réquisitions payées
+  - Statistiques financières
+  - Rapports par période
+
+### 🔧 API Endpoints Challenger
+```
+PUT /api/requisitions/:id/action - Actions (valider/modifier/refuser)
+GET /api/reports/financial       - Historique financier
+```
+
+---
+
+## ✅ 5. RÔLE VALIDATEUR (GM - General Manager)
+
+### 🎯 Responsabilités
+- Validation finale avant paiement
+- Approbation des montants importants
+- Décision finale sur les réquisitions
+
+### 📌 Fonctionnalités Principales
+
+#### A. Validation Finale
+- ✅ **Actions disponibles**
+  - **Valider** : Passe au niveau "Paiement"
+  - **Modifier** : Retourne au challenger
+  - **Refuser** : Rejette la réquisition
+
+- ✅ **Commentaire obligatoire**
+
+#### B. Accès aux Réquisitions
+- ✅ Voir les réquisitions à partir du niveau **validateur**
+- ✅ Niveaux accessibles: `validateur`, `paiement`, `justificatif`
+
+#### C. Historique Financier (`FinancialHistory.js`)
+- ✅ **Supervision financière**
+  - Vue d'ensemble des paiements
+  - Statistiques de validation
+  - Rapports de performance
+
+### 🔧 API Endpoints Validateur
+```
+PUT /api/requisitions/:id/action - Actions (valider/modifier/refuser)
+GET /api/reports/financial       - Historique financier
+```
+
+---
+
+## 💰 6. RÔLE COMPTABLE (COMPTABLE)
+
+### 🎯 Responsabilités
+- Gestion des paiements
+- Gestion des fonds disponibles
+- Suivi financier
+
+### 📌 Fonctionnalités Principales
+
+#### A. Gestion des Paiements (`PaymentManagement.js`)
+- ✅ **Dashboard de paiements**
+  - Vue d'ensemble des réquisitions validées
+  - Fonds disponibles (USD et CDF)
+  - Réquisitions en attente de paiement
+
+- ✅ **Effectuer des paiements**
+  - Paiement individuel
+  - Paiement groupé (multiple sélection)
+  - Vérification de fonds suffisants
+  - Commentaire obligatoire
+
+#### B. Gestion des Fonds
+- ✅ **Ravitaillement de caisse**
+  - Ajouter des fonds USD
+  - Ajouter des fonds CDF
+  - Historique des ravitaillements
+
+- ✅ **Mouvements de caisse**
+  - Entrées (ravitaillements)
+  - Sorties (paiements)
+  - Solde en temps réel
+
+#### C. Fonctionnalités Avancées
+- ✅ **Filtrage et recherche**
+  - Par numéro de réquisition
+  - Par service
+  - Par initiateur
+  - Par statut
+
+- ✅ **Tri des réquisitions**
+  - Par date d'initiation
+  - Par montant
+  - Par âge (réquisitions > 10 jours en rouge)
+
+- ✅ **Export et impression**
+  - Export Excel (CSV)
+  - Impression du rapport
+
+- ✅ **Alertes intelligentes**
+  - Réquisitions de plus de 10 jours
+  - Fonds insuffisants
+  - Paiements urgents
+
+#### D. Accès aux Réquisitions
+- ✅ Voir les réquisitions **validées** et plus
+- ✅ Niveaux accessibles: `validateur`, `paiement`, `justificatif`
+
+### 🔧 API Endpoints Comptable
+```
+POST /api/paiements/effectuer           - Effectuer paiement(s)
+POST /api/fonds/ravitailler            - Ravitailler caisse
+GET  /api/fonds/disponibles            - Consulter fonds
+GET  /api/fonds/mouvements             - Historique mouvements
+GET  /api/requisitions?niveau=paiement - Réquisitions à payer
+```
+
+---
+
+## 🔄 WORKFLOW COMPLET
+
+```
+┌──────────────┐
+│   ÉMETTEUR   │ → Crée la réquisition
+└──────┬───────┘
+       │
+       ↓
+┌──────────────┐
+│   ANALYSTE   │ → Valide / Modifie / Refuse
+└──────┬───────┘
+       │
+       ↓
+┌──────────────┐
+│  CHALLENGER  │ → Valide / Modifie / Refuse
+└──────┬───────┘
+       │
+       ↓
+┌──────────────┐
+│  VALIDATEUR  │ → Valide / Modifie / Refuse
+└──────┬───────┘
+       │
+       ↓
+┌──────────────┐
+│  COMPTABLE   │ → Effectue le paiement
+└──────┬───────┘
+       │
+       ↓
+┌──────────────┐
+│   ANALYSTE   │ → Valide le paiement
+└──────┬───────┘
+       │
+       ↓
+┌──────────────┐
+│   ÉMETTEUR   │ → Télécharge justificatifs
+└──────┬───────┘
+       │
+       ↓
+┌──────────────┐
+│ANALYSTE/COMP │ → Valide justificatifs → TERMINÉ
+└──────────────┘
+```
+
+---
+
+## 🔐 SYSTÈME DE PERMISSIONS
+
+### Visibilité des Réquisitions
+
+| Rôle | Réquisitions Visibles |
+|------|----------------------|
+| **Admin** | TOUTES |
+| **Émetteur** | Ses propres réquisitions uniquement |
+| **Analyste** | À partir du niveau `analyste` |
+| **Challenger** | À partir du niveau `challenger` |
+| **Validateur** | À partir du niveau `validateur` |
+| **Comptable** | À partir du niveau `validateur` |
+
+### Actions Autorisées
+
+| Action | Admin | Émetteur | Analyste | Challenger | Validateur | Comptable |
+|--------|-------|----------|----------|------------|------------|-----------|
+| Créer réquisition | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Valider/Modifier/Refuser | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| Effectuer paiement | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Valider paiement | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| Valider justificatifs | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| Gérer utilisateurs | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Gérer services | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+---
+
+## 💬 FONCTIONNALITÉS COMMUNES
+
+### Chat Intégré
+- ✅ Disponible pour **tous les rôles**
+- ✅ Communication en temps réel via Socket.IO
+- ✅ Historique complet des conversations
+- ✅ Contexte par réquisition
+
+### Notifications Temps Réel
+- ✅ Mise à jour automatique des réquisitions
+- ✅ Notifications des nouveaux messages
+- ✅ Synchronisation entre utilisateurs
+
+### Pièces Jointes
+- ✅ Upload de fichiers multiples
+- ✅ Formats variés (PDF, Office, Images, etc.)
+- ✅ Limite de 10MB par fichier
+- ✅ Téléchargement sécurisé
+
+---
+
+## 📊 RAPPORTS ET STATISTIQUES
+
+### Rapports Financiers (`FinanceReport.js`)
+- ✅ Graphiques de répartition par statut
+- ✅ Graphiques de répartition par service
+- ✅ Totaux USD et CDF
+- ✅ Détail des montants par réquisition
+
+### Historique Financier (`FinancialHistory.js`)
+- ✅ Pour Challenger et Validateur
+- ✅ Vue chronologique des mouvements
+- ✅ Statistiques de performance
+
+---
+
+## 🔧 TECHNOLOGIES UTILISÉES
+
+### Backend
+- **Node.js** + **Express**
+- **Socket.IO** (temps réel)
+- **JWT** (authentification)
+- **bcryptjs** (cryptage mots de passe)
+- **Multer** (upload fichiers)
+- **Moment.js** (gestion dates)
+
+### Frontend
+- **React 18**
+- **Material-UI (MUI)**
+- **Socket.IO Client**
+- **Moment.js**
+- **Recharts** (graphiques)
+
+### Sécurité
+- ✅ Authentification par JWT
+- ✅ Mots de passe cryptés avec bcrypt
+- ✅ Middleware d'autorisation par rôle
+- ✅ Validation des permissions sur chaque endpoint
+
+---
+
+## 🚀 DÉMARRAGE RAPIDE
+
+```bash
+# Installation
+npm run install-all
+
+# Démarrage développement
+npm run dev
+
+# Accès
+Frontend: http://localhost:3000
+Backend:  http://localhost:5000
+```
+
+---
+
+**📅 Date de création:** Octobre 2025  
+**👨‍💻 Développeur:** Toto Mulumba  
+**📝 Version:** 1.0.0

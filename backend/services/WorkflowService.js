@@ -1,0 +1,144 @@
+const { dbUtils } = require('../database/database');
+
+const WORKFLOW_STEPS = {
+  'emetteur': { valider: 'analyste', modifier: 'emetteur', refuser: 'annule' },
+  'analyste': { valider: 'challenger', modifier: 'emetteur', refuser: 'emetteur' },
+  'challenger': { valider: 'validateur', modifier: 'analyste', refuser: 'emetteur' },
+  'validateur': { valider: 'gm', modifier: 'challenger', refuser: 'emetteur' },
+  'pm': { valider: 'gm', modifier: 'challenger', refuser: 'emetteur' },
+  'gm': { valider: 'paiement', modifier: 'validateur', refuser: 'emetteur' },
+  'comptable': { valider: 'termine', modifier: 'gm', refuser: 'gm' }
+};
+
+class WorkflowService {
+  
+  // Obtenir la configuration des délais
+  static async getSettings() {
+    try {
+      const rows = await dbUtils.all('SELECT * FROM workflow_settings');
+      // Convert array to object map
+      const settings = {};
+      rows.forEach(row => {
+        settings[row.niveau] = row.delai_minutes;
+      });
+      return settings;
+    } catch (error) {
+      console.error('Erreur getSettings:', error);
+      return {};
+    }
+  }
+
+  // Mettre à jour un délai
+  static async updateSetting(niveau, delaiMinutes) {
+    // Upsert logic (Insert or Replace)
+    return dbUtils.run(
+      'INSERT OR REPLACE INTO workflow_settings (niveau, delai_minutes, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+      [niveau, delaiMinutes]
+    );
+  }
+
+  // Effectuer une transition de workflow
+  static async processAction(requisitionId, action, userRole, userId, commentaire, isAuto = false) {
+    const requisition = await dbUtils.get('SELECT * FROM requisitions WHERE id = ?', [requisitionId]);
+    if (!requisition) throw new Error('Réquisition non trouvée');
+
+    // Validation de base (sauf si auto, on suppose que le système sait ce qu'il fait, mais on vérifie quand même l'état)
+    if (['payee', 'refuse', 'refusee', 'termine', 'annulee'].includes(requisition.statut)) {
+      throw new Error('Action impossible sur une réquisition terminée');
+    }
+
+    const currentNiveau = requisition.niveau;
+
+    // Détermination du nouveau niveau
+    let niveauApres = null;
+
+    if (WORKFLOW_STEPS[currentNiveau] && WORKFLOW_STEPS[currentNiveau][action]) {
+        niveauApres = WORKFLOW_STEPS[currentNiveau][action];
+
+        // CORRECTION: Si un analyste valide une réquisition qui est encore au niveau 'emetteur',
+        // on considère qu'il la soumet ET la valide, donc elle passe directement au challenger.
+        if (currentNiveau === 'emetteur' && userRole === 'analyste' && action === 'valider') {
+            niveauApres = 'challenger';
+        }
+    } else {
+        throw new Error(`Transition impossible pour ${currentNiveau} -> ${action}`);
+    }
+
+    // Logique spécifique par action
+    if (action === 'refuser') {
+        if (currentNiveau === 'emetteur') {
+            niveauApres = 'termine'; // Annulation
+            await dbUtils.run('UPDATE requisitions SET statut = ?, niveau = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['annulee', niveauApres, requisitionId]);
+        } else {
+            const niveauRetour = requisition.niveau; // On garde trace d'où ça vient
+            niveauApres = 'emetteur';
+            await dbUtils.run('UPDATE requisitions SET statut = ?, niveau = ?, niveau_retour = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['a_corriger', niveauApres, niveauRetour, requisitionId]);
+        }
+    } else if (action === 'modifier') {
+        await dbUtils.run('UPDATE requisitions SET niveau = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [niveauApres, requisitionId]);
+    } else if (action === 'valider') {
+        if (currentNiveau === 'emetteur' && requisition.niveau_retour) {
+            // Retour correction
+            niveauApres = requisition.niveau_retour;
+            await dbUtils.run('UPDATE requisitions SET niveau = ?, niveau_retour = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [niveauApres, requisitionId]);
+        } else {
+             // Cas standard
+             let nouveauStatut = requisition.statut;
+             if (currentNiveau === 'gm') {
+                 nouveauStatut = 'validee';
+             } else if (currentNiveau === 'comptable') {
+                 nouveauStatut = 'payee';
+                 // NOTE: La logique de paiement (fonds) est complexe et reste pour l'instant dans le contrôleur ou doit être migrée ici.
+                 // Pour l'instant l'auto-validation ne s'applique PAS au comptable (trop risqué), donc on gère les niveaux intermédiaires.
+             }
+             
+             await dbUtils.run('UPDATE requisitions SET statut = ?, niveau = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [nouveauStatut, niveauApres, requisitionId]);
+        }
+    }
+
+    // Enregistrer l'historique
+    await dbUtils.run(
+        'INSERT INTO requisition_actions (requisition_id, utilisateur_id, action, commentaire, niveau_avant, niveau_apres) VALUES (?, ?, ?, ?, ?, ?)',
+        [requisitionId, userId || null, action, commentaire, currentNiveau, niveauApres]
+    );
+
+    return { niveauAvant: currentNiveau, niveauApres };
+  }
+
+  // Vérifier et exécuter les validations automatiques
+  static async runAutoValidation() {
+    console.log('🔄 Vérification des validations automatiques...');
+    const settings = await this.getSettings();
+    
+    // Pour chaque niveau configuré
+    for (const [niveau, delai] of Object.entries(settings)) {
+        if (!delai || delai <= 0) continue; // Pas de délai configuré
+        if (niveau === 'comptable') continue; // Pas de validation auto pour le paiement (sécurité)
+
+        // Trouver les réquisitions bloquées à ce niveau depuis plus de X minutes
+        // SQLite: strftime('%s', 'now') - strftime('%s', updated_at) donne la diff en secondes
+        // delai est en minutes, donc delai * 60
+        const query = `
+            SELECT id, numero, niveau, updated_at 
+            FROM requisitions 
+            WHERE niveau = ? 
+            AND statut NOT IN ('brouillon', 'a_corriger', 'payee', 'termine', 'annulee', 'validee')
+            AND (strftime('%s', 'now') - strftime('%s', updated_at)) > ?
+        `;
+        
+        const requisitions = await dbUtils.all(query, [niveau, delai * 60]);
+
+        for (const req of requisitions) {
+            console.log(`⏱️ Auto-validation déclenchée pour ${req.numero} (Niveau: ${req.niveau}, Délai: ${delai}m)`);
+            try {
+                // On utilise un ID utilisateur système (ex: 0 ou null)
+                await this.processAction(req.id, 'valider', req.niveau, null, 'Validation automatique (Délai dépassé)', true);
+            } catch (err) {
+                console.error(`❌ Erreur auto-validation ${req.numero}:`, err.message);
+            }
+        }
+    }
+  }
+}
+
+module.exports = WorkflowService;
