@@ -4,40 +4,58 @@ const { createClient } = require('@supabase/supabase-js');
 
 class StorageService {
     constructor() {
-        this.supabase = null;
-        this.bucket = 'requisitions';
-        this.uploadsDir = path.join(__dirname, '../uploads');
+        this.supabaseUrl = process.env.SUPABASE_URL;
+        this.supabaseKey = process.env.SUPABASE_KEY;
+        this.bucket = 'requisitions'; // Nom standard sans accent
         
-        // Ensure uploads directory exists for local storage
+        // Initialisation Supabase si les clés sont présentes
+        if (this.supabaseUrl && this.supabaseKey) {
+            console.log('🔌 Initialisation de Supabase Storage...');
+            this.supabase = createClient(this.supabaseUrl, this.supabaseKey);
+            
+            // Vérification/Création du bucket au démarrage
+            this.initBucket();
+        } else {
+            console.log('⚠️ Pas de configuration Supabase. Stockage local uniquement.');
+            this.supabase = null;
+        }
+
+        // Toujours assurer que le dossier local existe (fallback)
+        this.uploadsDir = path.join(__dirname, '../uploads');
         if (!fs.existsSync(this.uploadsDir)) {
             fs.mkdirSync(this.uploadsDir, { recursive: true });
         }
-
-        this.init();
     }
 
-    init() {
-        if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
-            console.log('🔌 Initialisation de Supabase Storage...');
-            this.supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-            this.checkBucket();
-        } else {
-            console.log('📂 Utilisation du stockage local (dossier uploads)');
-        }
-    }
-
-    async checkBucket() {
-        if (!this.supabase) return;
+    async initBucket() {
         try {
-            const { data, error } = await this.supabase.storage.getBucket(this.bucket);
-            if (error && error.message.includes('not found')) {
+            const { data: buckets, error: listError } = await this.supabase.storage.listBuckets();
+            
+            if (listError) {
+                console.error('❌ Erreur lors du listing des buckets:', listError);
+                return;
+            }
+
+            const bucketExists = buckets.some(b => b.name === this.bucket);
+
+            if (!bucketExists) {
                 console.log(`🪣 Création du bucket '${this.bucket}'...`);
-                await this.supabase.storage.createBucket(this.bucket, {
-                    public: false
+                const { data, error } = await this.supabase.storage.createBucket(this.bucket, {
+                    public: false,
+                    fileSizeLimit: 10485760, // 10MB
+                    allowedMimeTypes: ['image/png', 'image/jpeg', 'application/pdf']
                 });
+                
+                if (error) {
+                    console.error(`❌ Erreur création bucket '${this.bucket}':`, error);
+                } else {
+                    console.log(`✅ Bucket '${this.bucket}' créé avec succès.`);
+                }
+            } else {
+                console.log(`✅ Bucket '${this.bucket}' existe déjà.`);
             }
         } catch (err) {
-            console.error('Erreur vérification bucket Supabase:', err.message);
+            console.error('❌ Exception initBucket:', err);
         }
     }
 
