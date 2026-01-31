@@ -54,8 +54,90 @@ const SimpleDashboard: React.FC = () => {
   const [compilingPdf, setCompilingPdf] = useState(false);
 
   useEffect(() => {
+    const calculateStats = (allRequisitions: any[]) => {
+      let userRequisitions;
+      if (user?.role === 'admin') {
+        userRequisitions = allRequisitions;
+      } else if (user?.role === 'analyste') {
+        userRequisitions = allRequisitions.filter(req => 
+          req.niveau === 'analyst' || 
+          req.statut === 'soumise' || 
+          req.statut === 'en_cours' ||
+          req.statut === 'refusee'
+        );
+      } else if (user?.role === 'validateur') {
+        userRequisitions = allRequisitions.filter(req => 
+          req.niveau === 'validateur' || 
+          req.statut === 'en_cours' ||
+          req.statut === 'validee'
+        );
+      } else {
+        userRequisitions = allRequisitions.filter(req => req.emetteur_id === user?.id);
+      }
+
+      setStats({
+        totalRequisitions: userRequisitions.length,
+        enCours: userRequisitions.filter((r: any) => r.statut === 'en_cours').length,
+        validees: userRequisitions.filter((r: any) => r.statut === 'validee').length,
+        urgentes: userRequisitions.filter((r: any) => r.urgence === 'critique' || r.urgence === 'haute').length,
+        totalUsers: user?.role === 'admin' ? 15 : 0,
+        totalServices: user?.role === 'admin' ? 8 : 0,
+      });
+    };
+
+    const loadDashboardData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        let allRequisitions = [];
+        
+        if (!token) {
+          const requisitionService = RequisitionService.getInstance();
+          allRequisitions = requisitionService.getAllRequisitions();
+        } else {
+          try {
+            const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              allRequisitions = data.map((req: any) => {
+                if (req.statut === 'valide') req.statut = 'validee';
+                if (req.statut === 'refuse') req.statut = 'refusee';
+                return req;
+              });
+            } else {
+              const requisitionService = RequisitionService.getInstance();
+              allRequisitions = requisitionService.getAllRequisitions();
+            }
+          } catch (e) {
+            console.error('Erreur fetch:', e);
+            const requisitionService = RequisitionService.getInstance();
+            allRequisitions = requisitionService.getAllRequisitions();
+          }
+        }
+
+        calculateStats(allRequisitions);
+
+        const sortedReqs = [...allRequisitions].sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ).slice(0, 5);
+        
+        setRecentActivity(sortedReqs);
+
+      } catch (error) {
+        console.error('Erreur:', error);
+        const requisitionService = RequisitionService.getInstance();
+        const allRequisitions = requisitionService.getAllRequisitions();
+        calculateStats(allRequisitions);
+      }
+    };
+
     loadDashboardData();
-  }, []);
+  }, [user]);
 
   const handleCompilePdf = async () => {
     try {
@@ -89,84 +171,7 @@ const SimpleDashboard: React.FC = () => {
     }
   };
 
-  const loadDashboardData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      let allRequisitions = [];
 
-      if (!token) {
-        const requisitionService = RequisitionService.getInstance();
-        allRequisitions = requisitionService.getAllRequisitions();
-      } else {
-        const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          allRequisitions = data.map((req: any) => {
-             // Normalisation des statuts
-             if (req.statut === 'valide') req.statut = 'validee';
-             if (req.statut === 'refuse') req.statut = 'refusee';
-             return req;
-          });
-        } else {
-          const requisitionService = RequisitionService.getInstance();
-          allRequisitions = requisitionService.getAllRequisitions();
-        }
-      }
-      
-      calculateStats(allRequisitions);
-      
-      // Get recent activity (last 5 requisitions)
-      const sortedReqs = [...allRequisitions].sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      ).slice(0, 5);
-      
-      setRecentActivity(sortedReqs);
-
-    } catch (error) {
-      console.error('Erreur:', error);
-      // Fallback
-      const requisitionService = RequisitionService.getInstance();
-      const allRequisitions = requisitionService.getAllRequisitions();
-      calculateStats(allRequisitions);
-    }
-  };
-
-  const calculateStats = (allRequisitions: any[]) => {
-    let userRequisitions;
-    if (user?.role === 'admin') {
-      userRequisitions = allRequisitions;
-    } else if (user?.role === 'analyste') {
-      userRequisitions = allRequisitions.filter(req => 
-        req.niveau === 'analyst' || 
-        req.statut === 'soumise' || 
-        req.statut === 'en_cours' ||
-        req.statut === 'refusee'
-      );
-    } else if (user?.role === 'validateur') {
-      userRequisitions = allRequisitions.filter(req => 
-        req.niveau === 'validateur' || 
-        req.statut === 'en_cours' ||
-        req.statut === 'validee'
-      );
-    } else {
-      userRequisitions = allRequisitions.filter(req => req.emetteur_id === user?.id);
-    }
-    
-    setStats({
-      totalRequisitions: userRequisitions.length,
-      enCours: userRequisitions.filter(r => r.statut === 'en_cours').length,
-      validees: userRequisitions.filter(r => r.statut === 'validee').length,
-      urgentes: userRequisitions.filter(r => r.urgence === 'critique' || r.urgence === 'haute').length,
-      totalUsers: user?.role === 'admin' ? 15 : 0,
-      totalServices: user?.role === 'admin' ? 8 : 0,
-    });
-  };
 
   const StatCard = ({ title, value, icon, color, subtitle }: any) => (
     <Card elevation={0} sx={{ 

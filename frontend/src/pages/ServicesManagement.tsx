@@ -29,7 +29,6 @@ import {
   Add,
   Edit,
   Delete,
-  Search,
   CheckCircle,
   Cancel
 } from '@mui/icons-material';

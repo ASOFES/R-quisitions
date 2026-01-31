@@ -44,7 +44,6 @@ import {
 import RequisitionService from '../services/RequisitionService';
 import { useAuth } from '../context/AuthContext';
 import WorkflowTracker from '../components/WorkflowTracker';
-import WorkflowSummary from '../components/WorkflowSummary';
 
 interface UserProfile {
   id: number;
@@ -92,6 +91,7 @@ const ProfilePage: React.FC = () => {
     if (user) {
       loadProfileData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadProfileData = async () => {

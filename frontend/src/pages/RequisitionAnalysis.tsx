@@ -8,16 +8,13 @@ import {
   Button,
   Alert,
   CircularProgress,
-  Grid,
   Chip,
-  Avatar,
   IconButton,
   TextField,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  LinearProgress,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -33,29 +30,22 @@ import {
 } from '@mui/material';
 import {
   ArrowBack,
-  Visibility,
   CheckCircle,
   Cancel,
   Edit,
   Save,
   Assignment,
-  Description,
   MonetizationOn,
-  Schedule,
-  PriorityHigh,
   Assessment,
   Comment,
   ExpandMore,
-  ThumbUp,
-  ThumbDown,
   AttachFile,
   Download,
   Timeline,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import RequisitionService, { Requisition, WorkflowStep, WorkflowHistory } from '../services/RequisitionService';
-import { User } from '../services/api';
+import RequisitionService, { Requisition } from '../services/RequisitionService';
 import WorkflowTracker from '../components/WorkflowTracker';
 import WorkflowSummary from '../components/WorkflowSummary';
 import { API_BASE_URL } from '../config';
@@ -93,6 +83,7 @@ const RequisitionAnalysis: React.FC = () => {
 
   useEffect(() => {
     loadRequisitionData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const loadRequisitionData = async () => {

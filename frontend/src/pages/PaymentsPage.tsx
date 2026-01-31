@@ -44,7 +44,6 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import api, { Requisition } from '../services/api';
-import { getLogoBase64 } from '../utils/logoUtils';
 
 interface Payment {
   id: number;
@@ -89,7 +88,6 @@ function TabPanel(props: TabPanelProps) {
 const PaymentsPage: React.FC = () => {
   const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
-  const [logoBase64, setLogoBase64] = useState<string | null>(null);
   
   // States for "À payer"
   const [requisitions, setRequisitions] = useState<Requisition[]>([]);
@@ -118,9 +116,7 @@ const PaymentsPage: React.FC = () => {
   const [historyPage, setHistoryPage] = useState(0);
   const [historyRowsPerPage, setHistoryRowsPerPage] = useState(10);
 
-  useEffect(() => {
-    getLogoBase64().then(setLogoBase64);
-  }, []);
+
 
   const fetchRequisitions = async () => {
     try {
@@ -406,14 +402,11 @@ const PaymentsPage: React.FC = () => {
   };
 
   const handleExportPDF = () => {
-    // Orientation paysage pour avoir plus de place
-    const doc = new jsPDF({ orientation: "landscape" });
-    
-    // Titre
+    const doc = new jsPDF();
+
     doc.setFontSize(18);
-    doc.text("Historique des Paiements", 14, 15);
-    
-    // Sous-titre avec date
+    doc.text("Historique de Trésorerie", 14, 15);
+
     doc.setFontSize(10);
     doc.text(`Généré le : ${new Date().toLocaleDateString('fr-FR')}`, 14, 22);
     if (startDate || endDate) {

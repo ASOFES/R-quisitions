@@ -38,7 +38,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import RequisitionService, { Requisition } from '../services/RequisitionService';
+import RequisitionService from '../services/RequisitionService';
 import { API_BASE_URL } from '../config';
 
 const PMProfileClean: React.FC = () => {

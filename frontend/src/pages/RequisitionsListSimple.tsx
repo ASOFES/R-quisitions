@@ -62,7 +62,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import RequisitionService, { Requisition } from '../services/RequisitionService';
 import { useAuth } from '../context/AuthContext';
-import api from '../services/api';
 import { API_BASE_URL } from '../config';
 
 const RequisitionsList: React.FC = () => {
@@ -71,7 +70,6 @@ const RequisitionsList: React.FC = () => {
   const { user } = useAuth();
   const [requisitions, setRequisitions] = useState<Requisition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [selectedRequisition, setSelectedRequisition] = useState<Requisition | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -1088,34 +1086,7 @@ const RequisitionsList: React.FC = () => {
         </DialogTitle>
         
         <DialogContent sx={{ py: 3 }}>
-          {logoUrl && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-              <Box sx={{ 
-                bgcolor: 'white', 
-                borderRadius: '50%', 
-                p: 1, 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                width: 100,
-                height: 100,
-                boxShadow: 3,
-                border: '1px solid',
-                borderColor: 'grey.200',
-                overflow: 'hidden'
-              }}>
-                <img 
-                  src={logoUrl} 
-                  alt="Logo" 
-                  style={{ 
-                    width: '100%', 
-                    height: '100%', 
-                    objectFit: 'contain' 
-                  }} 
-                />
-              </Box>
-            </Box>
-          )}
+
           {selectedRequisition && (
             <Box>
               {/* Response Warning */}

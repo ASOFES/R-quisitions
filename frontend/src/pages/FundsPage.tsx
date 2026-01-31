@@ -57,7 +57,7 @@ import { Requisition, RequisitionItem } from '../services/RequisitionService';
 import { API_BASE_URL } from '../config';
 
 // Interface étendue pour inclure les propriétés spécifiques à la vue détaillée
-interface ExtendedRequisition extends Requisition {
+interface ExtendedRequisition extends Omit<Requisition, 'actions'> {
   site_nom?: string;
   items?: (RequisitionItem & { prix_total: number })[];
   pieces_jointes_data?: Array<{
@@ -72,6 +72,12 @@ interface ExtendedRequisition extends Requisition {
     size: number;
     type: string;
     data: string | null;
+  }>;
+  actions?: Array<{
+    action: string;
+    utilisateur_nom: string;
+    created_at: string;
+    commentaire?: string;
   }>;
 }
 

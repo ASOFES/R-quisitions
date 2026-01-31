@@ -8,7 +8,6 @@ import {
   Box,
   Alert,
   CircularProgress,
-  Avatar,
   Divider,
   useTheme,
   alpha,

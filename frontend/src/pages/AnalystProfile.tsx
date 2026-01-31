@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -24,7 +24,6 @@ import {
   IconButton,
 } from '@mui/material';
 import {
-  Person,
   Email,
   Phone,
   Business,
@@ -33,31 +32,22 @@ import {
   Cancel,
   ArrowBack,
   Work,
-  Assignment,
-  Timeline,
   Description,
-  MonetizationOn,
-  TrendingUp,
-  CheckCircle,
-  Schedule,
-  PriorityHigh,
   Logout,
   Settings,
   Visibility,
   Assessment,
   AccountBalance,
   PieChart,
-  BarChart,
   FilterList,
-  Search,
   AttachFile,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
-import RequisitionService, { Requisition } from '../services/RequisitionService';
+import { Requisition } from '../services/RequisitionService';
 
-interface AnalystProfile {
+interface AnalystProfileData {
   id: number;
   username: string;
   email: string;
@@ -83,20 +73,16 @@ const AnalystProfile: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   
-  const [profile, setProfile] = useState<AnalystProfile | null>(null);
+  const [profile, setProfile] = useState<AnalystProfileData | null>(null);
   const [recentRequisitions, setRecentRequisitions] = useState<Requisition[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
-  const [formData, setFormData] = useState<Partial<AnalystProfile>>({});
+  const [formData, setFormData] = useState<Partial<AnalystProfileData>>({});
   const [showSuccess, setShowSuccess] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterUrgence, setFilterUrgence] = useState<string>('all');
 
-  useEffect(() => {
-    loadProfileData();
-  }, []);
-
-  const loadProfileData = async () => {
+  const loadProfileData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -142,7 +128,7 @@ const AnalystProfile: React.FC = () => {
         };
 
         // Créer le profil analyste
-        const userProfile: AnalystProfile = {
+        const userProfile: AnalystProfileData = {
           id: user?.id || 3,
           username: user?.username || 'analyste',
           email: user?.email || 'analyste@entreprise.com',
@@ -169,7 +155,11 @@ const AnalystProfile: React.FC = () => {
       console.error('Erreur lors du chargement des données:', error);
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadProfileData();
+  }, [loadProfileData]);
 
   const handleEdit = () => {
     setEditMode(true);

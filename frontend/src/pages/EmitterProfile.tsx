@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -8,7 +8,6 @@ import {
   Avatar,
   Button,
   TextField,
-  Paper,
   List,
   ListItem,
   ListItemText,
@@ -18,7 +17,6 @@ import {
   Alert,
   CircularProgress,
   IconButton,
-  LinearProgress,
 } from '@mui/material';
 import {
   Person,
@@ -31,24 +29,19 @@ import {
   ArrowBack,
   Work,
   Assignment,
-  Timeline,
   Description,
-  MonetizationOn,
   TrendingUp,
-  CheckCircle,
-  Schedule,
-  PriorityHigh,
   Logout,
   Settings,
-  Visibility,
   AttachFile,
+  Visibility,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import RequisitionService, { Requisition } from '../services/RequisitionService';
 import { API_BASE_URL } from '../config';
 
-interface EmitterProfile {
+interface EmitterProfileData {
   id: number;
   username: string;
   email: string;
@@ -73,18 +66,14 @@ const EmitterProfile: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   
-  const [profile, setProfile] = useState<EmitterProfile | null>(null);
+  const [profile, setProfile] = useState<EmitterProfileData | null>(null);
   const [recentRequisitions, setRecentRequisitions] = useState<Requisition[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
-  const [formData, setFormData] = useState<Partial<EmitterProfile>>({});
+  const [formData, setFormData] = useState<Partial<EmitterProfileData>>({});
   const [showSuccess, setShowSuccess] = useState(false);
 
-  useEffect(() => {
-    loadProfileData();
-  }, []);
-
-  const loadProfileData = async () => {
+  const loadProfileData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -126,7 +115,7 @@ const EmitterProfile: React.FC = () => {
         };
 
         // Créer le profil utilisateur
-        const userProfile: EmitterProfile = {
+        const userProfile: EmitterProfileData = {
           id: user?.id || 1,
           username: user?.username || 'emetteur',
           email: user?.email || 'emetteur@company.com',
@@ -178,7 +167,7 @@ const EmitterProfile: React.FC = () => {
           moyenne_montant: userRequisitions.length > 0 ? userRequisitions.reduce((sum, r) => sum + r.montant, 0) / userRequisitions.length : 0,
         };
 
-        const userProfile: EmitterProfile = {
+        const userProfile: EmitterProfileData = {
           id: user?.id || 1,
           username: user?.username || 'emetteur',
           email: user?.email || 'emetteur@company.com',
@@ -216,7 +205,7 @@ const EmitterProfile: React.FC = () => {
           moyenne_montant: userRequisitions.length > 0 ? userRequisitions.reduce((sum, r) => sum + r.montant, 0) / userRequisitions.length : 0,
         };
 
-        const userProfile: EmitterProfile = {
+        const userProfile: EmitterProfileData = {
           id: user?.id || 1,
           username: user?.username || 'emetteur',
           email: user?.email || 'emetteur@company.com',
@@ -239,7 +228,11 @@ const EmitterProfile: React.FC = () => {
       }
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadProfileData();
+  }, [loadProfileData]);
 
   const handleEdit = () => {
     setEditMode(true);

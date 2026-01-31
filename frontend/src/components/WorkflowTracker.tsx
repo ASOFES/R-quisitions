@@ -13,14 +13,10 @@ import {
   Tooltip,
 } from '@mui/material';
 import {
-  CheckCircle,
   RadioButtonUnchecked,
-  Schedule,
   Person,
-  Description,
   Assessment,
   Verified,
-  Payment,
   Loop,
 } from '@mui/icons-material';
 import { WorkflowStep, WorkflowHistory } from '../services/RequisitionService';
@@ -31,38 +27,6 @@ interface WorkflowTrackerProps {
 }
 
 const WorkflowTracker: React.FC<WorkflowTrackerProps> = ({ workflow, compact = false }) => {
-  const getStepIcon = (step: WorkflowStep) => {
-    switch (step.id) {
-      case 'creation':
-        return <Description />;
-      case 'submission':
-        return <Schedule />;
-      case 'preliminary_analysis':
-        return <Assessment />;
-      case 'manager_review':
-        return <Person />;
-      case 'director_approval':
-        return <Verified />;
-      case 'payment':
-        return <Payment />;
-      default:
-        return <RadioButtonUnchecked />;
-    }
-  };
-
-  const getStepColor = (step: WorkflowStep): 'success' | 'grey' | 'warning' => {
-    switch (step.status) {
-      case 'completed':
-        return 'success';
-      case 'pending':
-        return 'grey';
-      case 'skipped':
-        return 'warning';
-      default:
-        return 'grey';
-    }
-  };
-
   const getStepAvatar = (step: WorkflowStep) => {
     const colors = {
       completed: '#4caf50',

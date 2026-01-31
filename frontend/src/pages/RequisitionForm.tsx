@@ -85,7 +85,6 @@ export default function RequisitionForm() {
   const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [relatedRequisition, setRelatedRequisition] = useState<any>(null);
-  const [editingRequisition, setEditingRequisition] = useState<any>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   
@@ -128,7 +127,7 @@ export default function RequisitionForm() {
               return;
             }
 
-            setEditingRequisition(req);
+            // setEditingRequisition(req);
             setFormData(prev => ({
               ...prev,
               objet: req.objet,
@@ -160,7 +159,7 @@ export default function RequisitionForm() {
       };
       fetchRequisition();
     }
-  }, [editRequisitionId]);
+  }, [editRequisitionId, navigate]);
 
   // Charger la réquisition liée si existante
   useEffect(() => {
@@ -266,29 +265,7 @@ export default function RequisitionForm() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Convertir un fichier en base64
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-  };
 
-  // Convertir tous les fichiers en base64
-  const convertAttachmentsToBase64 = async (attachments: FileAttachment[]): Promise<FileAttachment[]> => {
-    const convertedAttachments = await Promise.all(
-      attachments.map(async (attachment) => {
-        const base64Data = await fileToBase64(attachment.file);
-        return {
-          ...attachment,
-          data: base64Data
-        };
-      })
-    );
-    return convertedAttachments;
-  };
 
   // Fonction pour convertir le service demandeur en nom lisible
   const getServiceNom = (serviceCode: string) => {
