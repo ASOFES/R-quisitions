@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const services = await dbUtils.all(
-      'SELECT * FROM services WHERE actif = 1 ORDER BY nom'
+      'SELECT * FROM services WHERE actif = TRUE ORDER BY nom'
     );
 
     res.json(services);
