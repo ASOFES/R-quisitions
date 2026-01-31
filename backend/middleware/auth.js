@@ -15,7 +15,7 @@ const authenticateToken = async (req, res, next) => {
     
     // Récupérer les informations de l'utilisateur
     const user = await dbUtils.get(
-      'SELECT u.*, s.code as service_code, s.nom as service_nom, z.code as zone_code, z.nom as zone_nom FROM users u LEFT JOIN services s ON u.service_id = s.id LEFT JOIN zones z ON u.zone_id = z.id WHERE u.id = ? AND u.actif = 1',
+      'SELECT u.*, s.code as service_code, s.nom as service_nom, z.code as zone_code, z.nom as zone_nom FROM users u LEFT JOIN services s ON u.service_id = s.id LEFT JOIN zones z ON u.zone_id = z.id WHERE u.id = ? AND u.actif = TRUE',
       [decoded.userId]
     );
 

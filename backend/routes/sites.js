@@ -11,9 +11,9 @@ router.get('/', authenticateToken, async (req, res) => {
     const { all } = req.query;
     let query = 'SELECT * FROM sites';
     
-    // Si all n'est pas "true", on filtre par actif = 1
+    // Si all n'est pas "true", on filtre par actif = TRUE
     if (all !== 'true') {
-      query += ' WHERE actif = 1';
+      query += ' WHERE actif = TRUE';
     }
     
     query += ' ORDER BY nom';
@@ -74,7 +74,7 @@ router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res
 
     if (reqCount.count > 0 || lineCount.count > 0) {
       // Si utilisé, soft delete
-      await dbUtils.run('UPDATE sites SET actif = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+      await dbUtils.run('UPDATE sites SET actif = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
       res.json({ message: 'Site désactivé (car utilisé dans des réquisitions)' });
     } else {
       // Si non utilisé, suppression réelle

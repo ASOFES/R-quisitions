@@ -17,7 +17,7 @@ router.post('/login-simple', async (req, res) => {
     console.log('Password:', password);
     
     // Vérifier dans la base de données
-    const user = await dbUtils.get('SELECT * FROM users WHERE username = ? AND actif = 1', [username]);
+    const user = await dbUtils.get('SELECT * FROM users WHERE username = ? AND actif = TRUE', [username]);
     
     console.log('Utilisateur trouvé:', user);
     
@@ -83,7 +83,7 @@ router.post('/login', async (req, res) => {
 
     // Récupérer l'utilisateur
     const user = await dbUtils.get(
-      'SELECT u.*, s.code as service_code, s.nom as service_nom, z.code as zone_code, z.nom as zone_nom FROM users u LEFT JOIN services s ON u.service_id = s.id LEFT JOIN zones z ON u.zone_id = z.id WHERE u.username = ? AND u.actif = 1',
+      'SELECT u.*, s.code as service_code, s.nom as service_nom, z.code as zone_code, z.nom as zone_nom FROM users u LEFT JOIN services s ON u.service_id = s.id LEFT JOIN zones z ON u.zone_id = z.id WHERE u.username = ? AND u.actif = TRUE',
       [username]
     );
 

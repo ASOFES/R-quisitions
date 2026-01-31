@@ -83,7 +83,7 @@ router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) =
 
     // Vérifier si le nouveau code est déjà utilisé (uniquement les services actifs)
     if (code) {
-      const codeCheck = await dbUtils.get('SELECT id FROM services WHERE code = ? AND id != ? AND actif = 1', [code, id]);
+      const codeCheck = await dbUtils.get('SELECT id FROM services WHERE code = ? AND id != ? AND actif = TRUE', [code, id]);
       if (codeCheck) {
         return res.status(400).json({ error: 'Ce code de service existe déjà' });
       }
