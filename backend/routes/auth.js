@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { dbUtils } = require('../database/database');
+const { dbUtils, dbReady } = require('../database/database');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -9,6 +9,9 @@ const router = express.Router();
 // Route de connexion simple (contournement du problème JSON)
 router.post('/login-simple', async (req, res) => {
   try {
+    // Attendre que la base de données soit prête
+    await dbReady;
+
     console.log('Requête reçue via login-simple:', req.body);
     
     const { username, password } = req.body;
