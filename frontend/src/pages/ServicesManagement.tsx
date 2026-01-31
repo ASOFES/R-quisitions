@@ -29,7 +29,6 @@ import {
   Add,
   Edit,
   Delete,
-  Business,
   Search,
   CheckCircle,
   Cancel
