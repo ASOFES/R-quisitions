@@ -72,8 +72,10 @@ async function createRequisition(token) {
   });
   
   if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Erreur création: ${err}`);
+    const errText = await response.text();
+    console.error('❌ Erreur création réquisition:', response.status, response.statusText);
+    console.error('   Détails:', errText);
+    throw new Error(`Erreur création: ${errText}`);
   }
   
   const result = await response.json();
