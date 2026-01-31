@@ -5,19 +5,12 @@ const { dbUtils } = require('../database/database');
 const { authenticateToken, requireRole, checkRequisitionAccess } = require('../middleware/auth');
 const PdfService = require('../services/PdfService');
 const WorkflowService = require('../services/WorkflowService');
+const StorageService = require('../services/StorageService');
 
 const router = express.Router();
 
-// Configuration de multer pour l'upload de fichiers
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../uploads'));
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Configuration de multer pour l'upload de fichiers (MemoryStorage pour compatibilité Supabase)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -281,9 +274,10 @@ router.post('/', authenticateToken, requireRole(['emetteur', 'admin']), upload.a
     // Ajouter les pièces jointes si présentes
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
+        const uploadResult = await StorageService.uploadFile(file);
         await dbUtils.run(
           'INSERT INTO pieces_jointes (requisition_id, nom_fichier, chemin_fichier, taille_fichier, type_fichier, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)',
-          [result.id, file.originalname, file.path, file.size, file.mimetype, user.id]
+          [result.id, file.originalname, uploadResult.filename, file.size, file.mimetype, user.id]
         );
       }
     }
@@ -560,9 +554,10 @@ router.put('/:id', authenticateToken, upload.array('pieces', 5), async (req, res
     // Ajouter les nouvelles pièces jointes si présentes
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
+        const uploadResult = await StorageService.uploadFile(file);
         await dbUtils.run(
           'INSERT INTO pieces_jointes (requisition_id, nom_fichier, chemin_fichier, taille_fichier, type_fichier, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)',
-          [id, file.originalname, file.path, file.size, file.mimetype, user.id]
+          [id, file.originalname, uploadResult.filename, file.size, file.mimetype, user.id]
         );
       }
     }
@@ -628,9 +623,10 @@ router.post('/:id/pieces', authenticateToken, checkRequisitionAccess, upload.arr
 
     // Ajouter les pièces jointes
     for (const file of req.files) {
+      const uploadResult = await StorageService.uploadFile(file);
       await dbUtils.run(
         'INSERT INTO pieces_jointes (requisition_id, nom_fichier, chemin_fichier, taille_fichier, type_fichier, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, file.originalname, file.path, file.size, file.mimetype, user.id]
+        [id, file.originalname, uploadResult.filename, file.size, file.mimetype, user.id]
       );
     }
 

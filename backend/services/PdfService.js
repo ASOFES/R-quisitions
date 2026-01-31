@@ -2,6 +2,7 @@ const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const fs = require('fs');
 const path = require('path');
 const { dbUtils } = require('../database/database');
+const StorageService = require('./StorageService');
 
 class PdfService {
     async compileRequisitionsPdf(requisitions) {
@@ -77,52 +78,43 @@ class PdfService {
                 y -= 20;
                 
                 for (const att of attachments) {
-                    const filePath = path.join(__dirname, '../uploads', att.chemin_fichier); // Assumes chemin_fichier is just filename or relative path
-                    
-                    console.log(`[PdfService] Checking file: ${filePath}`);
-                    console.log(`[PdfService] Exists: ${fs.existsSync(filePath)}`);
-
-                    if (fs.existsSync(filePath)) {
+                    try {
+                        const fileBytes = await StorageService.getFileBuffer(att.chemin_fichier);
+                        
                         page.drawText(`- ${att.nom_fichier} (Inclus ci-après)`, { x: 60, y, size: 10, font, color: rgb(0, 0.5, 0) });
                         y -= 15;
 
-                        try {
-                            const ext = path.extname(filePath).toLowerCase();
-                            const fileBytes = fs.readFileSync(filePath);
-
-                            if (ext === '.pdf') {
-                                const attachmentDoc = await PDFDocument.load(fileBytes);
-                                const copiedPages = await mergedPdf.copyPages(attachmentDoc, attachmentDoc.getPageIndices());
-                                copiedPages.forEach((cp) => mergedPdf.addPage(cp));
-                            } else if (['.jpg', '.jpeg', '.png'].includes(ext)) {
-                                let img;
-                                if (ext === '.png') {
-                                    img = await mergedPdf.embedPng(fileBytes);
-                                } else {
-                                    img = await mergedPdf.embedJpg(fileBytes);
-                                }
-                                
-                                const imgPage = mergedPdf.addPage();
-                                const { width: pgWidth, height: pgHeight } = imgPage.getSize();
-                                
-                                // Scale image to fit page
-                                const imgDims = img.scaleToFit(pgWidth - 50, pgHeight - 50);
-                                
-                                imgPage.drawImage(img, {
-                                    x: (pgWidth - imgDims.width) / 2,
-                                    y: (pgHeight - imgDims.height) / 2,
-                                    width: imgDims.width,
-                                    height: imgDims.height,
-                                });
+                        const ext = path.extname(att.nom_fichier).toLowerCase();
+                        
+                        if (ext === '.pdf') {
+                            const attachmentDoc = await PDFDocument.load(fileBytes);
+                            const copiedPages = await mergedPdf.copyPages(attachmentDoc, attachmentDoc.getPageIndices());
+                            copiedPages.forEach((cp) => mergedPdf.addPage(cp));
+                        } else if (['.jpg', '.jpeg', '.png'].includes(ext)) {
+                            let img;
+                            if (ext === '.png') {
+                                img = await mergedPdf.embedPng(fileBytes);
+                            } else {
+                                img = await mergedPdf.embedJpg(fileBytes);
                             }
-                        } catch (err) {
-                            console.error(`Erreur intégration pièce jointe ${att.nom_fichier}:`, err);
-                            // Log error on summary page
-                            page.drawText(`  (Erreur d'intégration: ${err.message})`, { x: 80, y, size: 10, font, color: rgb(1, 0, 0) });
+                            
+                            const imgPage = mergedPdf.addPage();
+                            const { width: pgWidth, height: pgHeight } = imgPage.getSize();
+                            
+                            // Scale image to fit page
+                            const imgDims = img.scaleToFit(pgWidth - 50, pgHeight - 50);
+                            
+                            imgPage.drawImage(img, {
+                                x: (pgWidth - imgDims.width) / 2,
+                                y: (pgHeight - imgDims.height) / 2,
+                                width: imgDims.width,
+                                height: imgDims.height,
+                            });
                         }
-                    } else {
-                        page.drawText(`- ${att.nom_fichier} (Fichier introuvable sur le serveur)`, { x: 60, y, size: 10, font, color: rgb(1, 0, 0) });
-                        y -= 15;
+                    } catch (err) {
+                        console.error(`Erreur intégration pièce jointe ${att.nom_fichier}:`, err);
+                         page.drawText(`- ${att.nom_fichier} (Fichier introuvable ou erreur)`, { x: 60, y, size: 10, font, color: rgb(1, 0, 0) });
+                         y -= 15;
                     }
                 }
             } else {
