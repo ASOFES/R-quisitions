@@ -79,6 +79,9 @@ class PdfService {
                 for (const att of attachments) {
                     const filePath = path.join(__dirname, '../uploads', att.chemin_fichier); // Assumes chemin_fichier is just filename or relative path
                     
+                    console.log(`[PdfService] Checking file: ${filePath}`);
+                    console.log(`[PdfService] Exists: ${fs.existsSync(filePath)}`);
+
                     if (fs.existsSync(filePath)) {
                         page.drawText(`- ${att.nom_fichier} (Inclus ci-après)`, { x: 60, y, size: 10, font, color: rgb(0, 0.5, 0) });
                         y -= 15;
