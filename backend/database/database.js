@@ -2,6 +2,13 @@ const sqlite3 = require('sqlite3').verbose();
 const { Pool, types } = require('pg');
 const path = require('path');
 const fs = require('fs');
+const dns = require('dns');
+
+// Force IPv4 for Supabase connection issues on Node 17+ (Render uses Node 20+)
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 // Force timestamps to be returned as strings (compatibility with SQLite behavior)
@@ -20,28 +27,51 @@ const dbReady = new Promise((resolve, reject) => {
 
 if (isPostgres) {
   console.log('🔄 Initialisation mode PostgreSQL...');
-  dbInstance = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }, // Force SSL for Render/Cloud
-    connectionTimeoutMillis: 10000 // Timeout après 10s
-  });
   
-  // Test connection and Init
-  dbInstance.connect((err, client, release) => {
-    if (err) {
-      console.error('❌ Erreur connexion PostgreSQL:', err.message);
-      if (dbReadyReject) dbReadyReject(err);
-    } else {
-      console.log('✅ Connecté à PostgreSQL.');
-      initializeDatabasePostgres().then(() => {
-        if (release) release();
-        if (dbReadyResolve) dbReadyResolve();
-      }).catch(err => {
-        if (release) release();
-        if (dbReadyReject) dbReadyReject(err);
-      });
+  (async () => {
+    let connectionString = process.env.DATABASE_URL;
+    try {
+      // Manual DNS resolution to force IPv4
+      const { URL } = require('url');
+      const parsedUrl = new URL(connectionString);
+      const hostname = parsedUrl.hostname;
+      
+      if (!hostname.match(/^(\d{1,3}\.){3}\d{1,3}$/)) { // If not already an IP
+          console.log(`🔍 Résolution DNS pour ${hostname}...`);
+          const addresses = await dns.promises.resolve4(hostname);
+          if (addresses && addresses.length > 0) {
+            console.log(`✅ Résolution réussie: ${hostname} -> ${addresses[0]}`);
+            parsedUrl.hostname = addresses[0];
+            connectionString = parsedUrl.toString();
+          }
+      }
+    } catch (e) {
+      console.warn(`⚠️ Erreur résolution DNS manuelle: ${e.message}. Utilisation de l'URL originale.`);
     }
-  });
+
+    dbInstance = new Pool({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }, // Force SSL for Render/Cloud
+      connectionTimeoutMillis: 10000 // Timeout après 10s
+    });
+    
+    // Test connection and Init
+    dbInstance.connect((err, client, release) => {
+      if (err) {
+        console.error('❌ Erreur connexion PostgreSQL:', err.message);
+        if (dbReadyReject) dbReadyReject(err);
+      } else {
+        console.log('✅ Connecté à PostgreSQL.');
+        initializeDatabasePostgres().then(() => {
+          if (release) release();
+          if (dbReadyResolve) dbReadyResolve();
+        }).catch(err => {
+          if (release) release();
+          if (dbReadyReject) dbReadyReject(err);
+        });
+      }
+    });
+  })();
 
 } else {
   console.log('🔄 Initialisation mode SQLite...');
