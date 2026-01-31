@@ -92,8 +92,11 @@ if (isPostgres) {
           } else {
             console.error('❌ AUCUNE adresse IPv4 trouvée pour le hostname actuel.');
             
-            // Fallback ultime: Essayer de se connecter directement à l'IP de Supabase (si connue ou résolvable via un autre alias)
-            // Pour l'instant, on laisse échouer mais avec un message clair.
+            if (hostname.includes('supabase.co')) {
+               console.error(`\n💡 CONSEIL SUPABASE: L'adresse ${hostname} semble être uniquement IPv6.`);
+               console.error(`👉 Utilisez l'URL du "Connection Pooler" (Mode Session) qui supporte IPv4.`);
+               console.error(`   Format: postgres://[user]:[pass]@aws-0-[region].pooler.supabase.com:5432/[db]\n`);
+            }
           }
       }
     } catch (e) {
