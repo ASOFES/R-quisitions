@@ -153,7 +153,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`Serveur démarré sur le port ${PORT}`);
+  console.log(`🚀 Serveur démarré sur le port ${PORT}`);
+  console.log(`📦 Version: Bucket 'requisitions' (sans accent)`);
   
   // Démarrer le job de validation automatique (toutes les minutes)
   setInterval(() => {
