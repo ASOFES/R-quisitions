@@ -3,9 +3,17 @@ const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
+
+// S'assurer que le dossier uploads existe
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('Dossier uploads créé:', uploadsDir);
+}
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
