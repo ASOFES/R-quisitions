@@ -35,19 +35,28 @@ if (isPostgres) {
       connectionTimeoutMillis: 10000 // Timeout après 10s
     };
 
+    // FIX SUPABASE RENDER IPV6 ISSUE
+    // Supabase Pooler (port 6543) seems to have DNS/IPv6 issues on Render.
+    // We will try to resolve the DIRECT connection (port 5432) hostname which usually supports IPv4 better,
+    // OR resolve the current hostname to IPv4.
+    
     try {
-      // Manual DNS resolution to force IPv4
       const { URL } = require('url');
       const parsedUrl = new URL(process.env.DATABASE_URL);
-      const hostname = parsedUrl.hostname;
+      let hostname = parsedUrl.hostname;
+
+      // Check if we are using the pooler (Supabase usually uses aws-0-Region.pooler.supabase.com aliases)
+      // Or just standard db.project.supabase.co
       
+      console.log(`🔍 Analyse de connexion pour: ${hostname}`);
+
       if (!hostname.match(/^(\d{1,3}\.){3}\d{1,3}$/)) { // If not already an IP
-          console.log(`🔍 Résolution DNS pour ${hostname}...`);
           
           let ip = null;
           
           // Méthode 1: dns.lookup (Système / getaddrinfo)
           try {
+            console.log(`🔍 Tentative résolution système (IPv4) pour ${hostname}...`);
             ip = await new Promise((resolve, reject) => {
               dns.lookup(hostname, { family: 4 }, (err, address) => {
                 if (err) reject(err);
@@ -75,13 +84,16 @@ if (isPostgres) {
           }
 
           if (ip) {
-            // Important: On utilise l'IP pour la connexion, MAIS on garde le hostname pour le SNI (SSL)
-            // Sinon la connexion SSL échouera ou sera mal routée par Supabase
+            // Important: On utilise l'IP pour la connexion
             poolConfig.host = ip;
+            // On garde le hostname original pour le SNI (SSL)
             poolConfig.ssl.servername = hostname;
             console.log('✅ Configuration connexion: Host IP + SNI Hostname appliqué.');
           } else {
-            console.error('❌ AUCUNE adresse IPv4 trouvée. La connexion risque d\'échouer sur un réseau IPv6-only incompatible.');
+            console.error('❌ AUCUNE adresse IPv4 trouvée pour le hostname actuel.');
+            
+            // Fallback ultime: Essayer de se connecter directement à l'IP de Supabase (si connue ou résolvable via un autre alias)
+            // Pour l'instant, on laisse échouer mais avec un message clair.
           }
       }
     } catch (e) {
