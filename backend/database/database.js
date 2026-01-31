@@ -12,24 +12,33 @@ types.setTypeParser(1184, str => str); // TIMESTAMPTZ
 const isPostgres = !!process.env.DATABASE_URL;
 let dbInstance;
 let dbReadyResolve;
-const dbReady = new Promise(resolve => dbReadyResolve = resolve);
+let dbReadyReject;
+const dbReady = new Promise((resolve, reject) => {
+  dbReadyResolve = resolve;
+  dbReadyReject = reject;
+});
 
 if (isPostgres) {
   console.log('🔄 Initialisation mode PostgreSQL...');
   dbInstance = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false } // Force SSL for Render/Cloud
+    ssl: { rejectUnauthorized: false }, // Force SSL for Render/Cloud
+    connectionTimeoutMillis: 10000 // Timeout après 10s
   });
   
   // Test connection and Init
   dbInstance.connect((err, client, release) => {
     if (err) {
       console.error('❌ Erreur connexion PostgreSQL:', err.message);
+      if (dbReadyReject) dbReadyReject(err);
     } else {
       console.log('✅ Connecté à PostgreSQL.');
       initializeDatabasePostgres().then(() => {
         if (release) release();
         if (dbReadyResolve) dbReadyResolve();
+      }).catch(err => {
+        if (release) release();
+        if (dbReadyReject) dbReadyReject(err);
       });
     }
   });
