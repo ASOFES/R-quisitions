@@ -81,7 +81,7 @@ function AppRoutes() {
         <Route
           path="/analyst-profile"
           element={
-            <RoleBasedRoute allowedRoles={['analyste']}>
+            <RoleBasedRoute allowedRoles={['analyste', 'admin']}>
               <AnalystProfile />
             </RoleBasedRoute>
           }
