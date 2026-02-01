@@ -308,7 +308,13 @@ class PdfService {
             }
 
             // --- ATTACHMENTS ---
-            const attachments = await dbUtils.all('SELECT * FROM pieces_jointes WHERE requisition_id = ?', [req.id]);
+            const attachments = await dbUtils.all(`
+                SELECT pj.*, u.nom_complet as uploader_nom
+                FROM pieces_jointes pj
+                LEFT JOIN users u ON pj.uploaded_by = u.id
+                WHERE pj.requisition_id = ?
+            `, [req.id]);
+            
             if (attachments.length > 0) {
                 y = checkPageBreak(y, 100);
                 page.drawText(`PIÈCES JOINTES (${attachments.length})`, { x: margin, y, size: 12, font: boldFont, color: colors.primary });
@@ -317,7 +323,10 @@ class PdfService {
                 for (const att of attachments) {
                     try {
                         const fileBytes = await StorageService.getFileBuffer(att.chemin_fichier);
-                        page.drawText(`• ${att.nom_fichier}`, { x: margin + 10, y, size: 10, font, color: colors.primary });
+                        
+                        // Filename + Uploader info
+                        const uploaderText = att.uploader_nom ? ` (Ajouté par: ${att.uploader_nom})` : '';
+                        page.drawText(`• ${att.nom_fichier}${uploaderText}`, { x: margin + 10, y, size: 10, font, color: colors.primary });
                         y -= 15;
 
                         // Embed Logic
