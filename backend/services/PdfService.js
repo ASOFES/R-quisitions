@@ -172,8 +172,8 @@ class PdfService {
             };
 
             const col1 = margin + 15;
-            const col2 = margin + 180;
-            const col3 = margin + 350;
+            const col2 = margin + 230; // Décalé vers la droite pour laisser plus de place à l'Objet (était 180)
+            const col3 = margin + 390; // Décalé vers la droite (était 350)
             
             let rowY = y - 25;
             
