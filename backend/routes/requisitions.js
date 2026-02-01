@@ -61,21 +61,20 @@ async function generateRequisitionNumber(serviceId, zoneCode, siteId) {
     siteSuffix = 'GEN';
   }
   
-  // Compter les réquisitions du mois (Adaptation PostgreSQL)
+  // Compter les réquisitions de l'année (Séquence annuelle globale)
   let countQuery;
-  let countParams;
-
+  
   const isPostgres = !!process.env.DATABASE_URL;
 
   if (isPostgres) {
-    countQuery = 'SELECT COUNT(*) as count FROM requisitions WHERE to_char(created_at, \'YYYY-MM\') = ?';
+    countQuery = 'SELECT COUNT(*) as count FROM requisitions WHERE to_char(created_at, \'YYYY\') = ?';
   } else {
-    countQuery = 'SELECT COUNT(*) as count FROM requisitions WHERE strftime("%Y-%m", created_at) = ?';
+    countQuery = 'SELECT COUNT(*) as count FROM requisitions WHERE strftime("%Y", created_at) = ?';
   }
 
   const count = await dbUtils.get(
     countQuery,
-    [`${year}-${month}`]
+    [`${year}`]
   );
   
   const sequence = String(count.count + 1).padStart(4, '0');
