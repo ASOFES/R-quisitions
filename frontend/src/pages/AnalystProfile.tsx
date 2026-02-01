@@ -525,9 +525,11 @@ const AnalystProfile: React.FC = () => {
                 Assignation Mode de Paiement (Post-Validation GM)
               </Typography>
               {paymentRequisitions.length === 0 ? (
-                 <Typography variant="body2" color="text.secondary">
-                   Aucune réquisition en attente de classification.
-                 </Typography>
+                 <Alert severity="info">
+                   Aucune réquisition validée par le GM n'est en attente de classification.
+                   <br />
+                   Les boutons Cash/Banque apparaîtront ici une fois qu'une réquisition aura été approuvée par le GM.
+                 </Alert>
               ) : (
                 <Box sx={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
