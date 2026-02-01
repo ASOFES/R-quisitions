@@ -73,7 +73,8 @@ class PdfService {
             };
 
             const drawWrappedText = (text, x, startY, size, textFont, maxWidth) => {
-                const words = (text || '').split(/\s+/); // Split by whitespace
+                const safeContent = safeText(text || '');
+                const words = safeContent.split(/\s+/); // Split by whitespace
                 let line = '';
                 let currentY = startY;
                 
@@ -165,7 +166,7 @@ class PdfService {
             // Grid Helpers
             const drawInfo = (label, value, colX, rowY) => {
                 page.drawText(label, { x: colX, y: rowY, size: 9, font: boldFont, color: rgb(0.5, 0.5, 0.5) });
-                page.drawText(value || '-', { x: colX, y: rowY - 14, size: 11, font: font, color: colors.text });
+                page.drawText(safeText(value) || '-', { x: colX, y: rowY - 14, size: 11, font: font, color: colors.text });
             };
 
             const col1 = margin + 15;
@@ -244,7 +245,7 @@ class PdfService {
                     page.drawText(action.action.toUpperCase(), { x: colAction, y, size: 9, font: boldFont, color: colors.primary });
                     
                     // Wrap User Name if too long
-                    const userText = `${action.utilisateur_nom || 'Inconnu'} (${action.utilisateur_role || '-'})`;
+                    const userText = safeText(`${action.utilisateur_nom || 'Inconnu'} (${action.utilisateur_role || '-'})`);
                     // Simplified wrap for user col (width approx 140)
                     // ... avoiding complex wrap for now, just truncate if needed or let it overflow slightly
                     page.drawText(userText, { x: colUser, y, size: 9, font });
@@ -252,7 +253,7 @@ class PdfService {
                     // Note
                     if (action.commentaire) {
                         // Simple wrap for note
-                        const noteWords = action.commentaire.split(' ');
+                        const noteWords = safeText(action.commentaire).split(' ');
                         let noteLine = '';
                         let noteY = y;
                         for(const w of noteWords) {
@@ -301,7 +302,7 @@ class PdfService {
 
                     // Header: User & Date
                     const dateStr = new Date(msg.created_at).toLocaleString();
-                    const headText = `${msg.utilisateur_nom || 'Utilisateur'} - ${dateStr}`;
+                    const headText = safeText(`${msg.utilisateur_nom || 'Utilisateur'} - ${dateStr}`);
                     page.drawText(headText, { x: margin, y, size: 10, font: boldFont, color: colors.text });
                     y -= 15;
 
@@ -334,7 +335,8 @@ class PdfService {
                         
                         // Filename + Uploader info
                         const uploaderText = att.uploader_nom ? ` (Ajouté par: ${att.uploader_nom})` : '';
-                        page.drawText(`• ${att.nom_fichier}${uploaderText}`, { x: margin + 10, y, size: 10, font, color: colors.primary });
+                        const fileLine = safeText(`• ${att.nom_fichier}${uploaderText}`);
+                        page.drawText(fileLine, { x: margin + 10, y, size: 10, font, color: colors.primary });
                         y -= 15;
 
                         // Embed Logic
@@ -391,7 +393,8 @@ class PdfService {
                         }
                     } catch (err) {
                         console.error(`Erreur PJ ${att.nom_fichier}:`, err);
-                        page.drawText(`• ${att.nom_fichier} (Erreur de chargement)`, { x: margin + 10, y, size: 10, font, color: rgb(0.8, 0, 0) });
+                        const errLine = safeText(`• ${att.nom_fichier} (Erreur de chargement)`);
+                        page.drawText(errLine, { x: margin + 10, y, size: 10, font, color: rgb(0.8, 0, 0) });
                         y -= 15;
                     }
                 }
