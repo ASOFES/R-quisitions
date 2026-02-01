@@ -14,8 +14,10 @@ class PdfService {
         // Helper pour sécuriser le texte (éviter crash sur caractères non supportés)
         const safeText = (text) => {
             if (!text) return '';
+            // Remplacer les sauts de ligne et tabulations par des espaces pour éviter le crash WinAnsi
+            let clean = text.replace(/[\n\r\t]+/g, ' ');
             // Remplacer les caractères non-WinAnsi par ?
-            return text.replace(/[^\x00-\xFF]/g, '?');
+            return clean.replace(/[^\x00-\xFF]/g, '?');
         };
 
         // --- CONSTANTS & STYLES ---
