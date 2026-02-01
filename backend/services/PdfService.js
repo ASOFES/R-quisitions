@@ -334,7 +334,18 @@ class PdfService {
                         if (ext === '.pdf') {
                             const attachmentDoc = await PDFDocument.load(fileBytes);
                             const copiedPages = await mergedPdf.copyPages(attachmentDoc, attachmentDoc.getPageIndices());
-                            copiedPages.forEach((cp) => mergedPdf.addPage(cp));
+                            copiedPages.forEach((cp) => {
+                                const newPage = mergedPdf.addPage(cp);
+                                // Add Header to attachment page
+                                const { width: npWidth, height: npHeight } = newPage.getSize();
+                                newPage.drawText(`Annexe - Réquisition N° ${req.numero} - Initiateur : ${req.emetteur_nom}`, {
+                                    x: 50,
+                                    y: npHeight - 30,
+                                    size: 10,
+                                    font: boldFont,
+                                    color: colors.primary
+                                });
+                            });
                         } else if (['.jpg', '.jpeg', '.png'].includes(ext)) {
                             let img;
                             if (ext === '.png') img = await mergedPdf.embedPng(fileBytes);
@@ -342,6 +353,16 @@ class PdfService {
                             
                             const imgPage = mergedPdf.addPage();
                             const { width: pgWidth, height: pgHeight } = imgPage.getSize();
+                            
+                            // Add Header to image page
+                            imgPage.drawText(`Annexe - Réquisition N° ${req.numero} - Initiateur : ${req.emetteur_nom}`, {
+                                x: 50,
+                                y: pgHeight - 30,
+                                size: 10,
+                                font: boldFont,
+                                color: colors.primary
+                            });
+
                             const imgDims = img.scaleToFit(pgWidth - 100, pgHeight - 100);
                             imgPage.drawImage(img, {
                                 x: (pgWidth - imgDims.width) / 2,
