@@ -12,9 +12,6 @@ class StorageService {
         if (this.supabaseUrl && this.supabaseKey) {
             console.log('🔌 Initialisation de Supabase Storage...');
             this.supabase = createClient(this.supabaseUrl, this.supabaseKey);
-            
-            // Vérification/Création du bucket au démarrage
-            // this.initBucket();
         } else {
             console.log('⚠️ Pas de configuration Supabase. Stockage local uniquement.');
             this.supabase = null;

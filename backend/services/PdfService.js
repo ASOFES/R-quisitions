@@ -80,6 +80,50 @@ class PdfService {
             y = drawWrappedText(req.commentaire_initial || 'Aucun commentaire.', 50, y, 12, font, width - 100);
             y -= 20;
 
+            // 1.4 Fetch and Embed Validation History (Signatures)
+            const actions = await dbUtils.all(`
+                SELECT ra.*, u.nom_complet as utilisateur_nom, u.role as utilisateur_role
+                FROM requisition_actions ra
+                LEFT JOIN users u ON ra.utilisateur_id = u.id
+                WHERE ra.requisition_id = ?
+                ORDER BY ra.created_at ASC
+            `, [req.id]);
+
+            if (actions.length > 0) {
+                 if (y < 100) {
+                    page = mergedPdf.addPage();
+                    y = height - 50;
+                }
+                
+                page.drawText('Historique des Validations (Intervenants):', { x: 50, y, size: 14, font: boldFont });
+                y -= 25;
+
+                for (const action of actions) {
+                    if (y < 60) {
+                        page = mergedPdf.addPage();
+                        y = height - 50;
+                    }
+
+                    const dateStr = new Date(action.created_at).toLocaleString();
+                    const userName = action.utilisateur_nom || 'Système/Inconnu';
+                    const role = action.utilisateur_role ? `(${action.utilisateur_role})` : '';
+                    
+                    // Format: [Date] Action par User (Role)
+                    // e.g. [01/01/2024 10:00] Valider par Jean Dupont (analyste)
+                    const lineText = `[${dateStr}] ${action.action.toUpperCase()} par ${userName} ${role}`;
+                    
+                    page.drawText(lineText, { x: 50, y, size: 10, font });
+                    y -= 15;
+                    
+                    if (action.commentaire) {
+                         page.drawText(`   Note: ${action.commentaire}`, { x: 70, y, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
+                         y -= 15;
+                    }
+                    y -= 5;
+                }
+                y -= 20;
+            }
+
             // 1.5 Fetch and Embed Workflow Messages (Comments)
             const messages = await dbUtils.all(`
                 SELECT m.*, u.nom_complet as utilisateur_nom
