@@ -9,78 +9,192 @@ class PdfService {
         const mergedPdf = await PDFDocument.create();
         const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
         const boldFont = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
+        
+        // --- CONSTANTS & STYLES ---
+        const colors = {
+            primary: rgb(0, 0.35, 0.55),     // Deep Blue
+            secondary: rgb(0.95, 0.95, 0.95), // Light Gray Background
+            text: rgb(0.2, 0.2, 0.2),         // Dark Gray Text
+            accent: rgb(0.8, 0.2, 0.2),       // Red Accent
+            white: rgb(1, 1, 1),
+            border: rgb(0.85, 0.85, 0.85)
+        };
+        
+        const margin = 50;
+
+        // --- LOAD LOGO ---
+        let logoImage = null;
+        try {
+            const extensions = ['.png', '.jpg', '.jpeg'];
+            const uploadDir = path.join(__dirname, '../uploads');
+            for (const ext of extensions) {
+                const logoPath = path.join(uploadDir, 'logo' + ext);
+                if (fs.existsSync(logoPath)) {
+                    const logoBytes = fs.readFileSync(logoPath);
+                    if (ext === '.png') {
+                        logoImage = await mergedPdf.embedPng(logoBytes);
+                    } else {
+                        logoImage = await mergedPdf.embedJpg(logoBytes);
+                    }
+                    break;
+                }
+            }
+        } catch (err) {
+            console.error('Erreur chargement logo PDF:', err);
+        }
 
         if (requisitions.length === 0) {
             const page = mergedPdf.addPage();
-            page.drawText('Aucune réquisition trouvée.', { x: 50, y: 700, size: 20, font: boldFont });
+            page.drawText('Aucune réquisition trouvée.', { x: margin, y: 700, size: 20, font: boldFont, color: colors.text });
             return await mergedPdf.save();
         }
 
         for (const req of requisitions) {
-            // 1. Create Summary Page for the Requisition
             let page = mergedPdf.addPage();
             const { width, height } = page.getSize();
-            let y = height - 50;
+            const contentWidth = width - (margin * 2);
+            let y = height - 40;
 
-            // Header
-            page.drawText(`Réquisition: ${req.numero}`, { x: 50, y, size: 24, font: boldFont, color: rgb(0, 0.53, 0.71) });
-            y -= 40;
-
-            // Details
-            const drawField = (label, value) => {
-                page.drawText(`${label}:`, { x: 50, y, size: 12, font: boldFont });
-                page.drawText(`${value || 'N/A'}`, { x: 150, y, size: 12, font });
-                y -= 20;
-            };
-
-            drawField('Objet', req.objet);
-            drawField('Montant USD', `${req.montant_usd || 0} $`);
-            drawField('Montant CDF', `${req.montant_cdf || 0} FC`);
-            drawField('Émetteur', req.emetteur_nom);
-            drawField('Service', req.service_nom || req.service_code);
-            drawField('Date', new Date(req.created_at).toLocaleDateString());
-            drawField('Statut', req.statut);
-            drawField('Niveau Actuel', req.niveau);
-
-            y -= 20;
-            page.drawLine({
-                start: { x: 50, y },
-                end: { x: width - 50, y },
-                thickness: 1,
-                color: rgb(0.8, 0.8, 0.8),
-            });
-            y -= 30;
-
-            // Description / Commentaire Initial
-            page.drawText('Commentaire Initial:', { x: 50, y, size: 14, font: boldFont });
-            y -= 20;
-            
-            // Basic text wrapping for description
-            const drawWrappedText = (text, x, y, size, font, maxWidth) => {
-                const words = (text || '').split(' ');
-                let line = '';
-                let currentY = y;
-                for (const word of words) {
-                    if (font.widthOfTextAtSize(line + word, size) > maxWidth) {
-                        page.drawText(line, { x, y: currentY, size, font });
-                        currentY -= size + 5;
-                        line = '';
-                        // Check for page break
-                        if (currentY < 50) {
-                             page = mergedPdf.addPage();
-                             currentY = height - 50;
-                        }
-                    }
-                    line += word + ' ';
+            // --- HELPER FUNCTIONS (Scoped to current page/y) ---
+            const checkPageBreak = (currentY, neededSpace = 50) => {
+                if (currentY < neededSpace) {
+                    page = mergedPdf.addPage();
+                    return height - 50;
                 }
-                page.drawText(line, { x, y: currentY, size, font });
-                return currentY - 20;
+                return currentY;
             };
 
-            y = drawWrappedText(req.commentaire_initial || 'Aucun commentaire.', 50, y, 12, font, width - 100);
+            const drawWrappedText = (text, x, startY, size, textFont, maxWidth) => {
+                const words = (text || '').split(/\s+/); // Split by whitespace
+                let line = '';
+                let currentY = startY;
+                
+                for (const word of words) {
+                    const testLine = line + word + ' ';
+                    const textWidth = textFont.widthOfTextAtSize(testLine, size);
+                    
+                    if (textWidth > maxWidth) {
+                        page.drawText(line, { x, y: currentY, size, font: textFont, color: colors.text });
+                        currentY -= (size + 5);
+                        line = word + ' ';
+                        
+                        currentY = checkPageBreak(currentY, 50);
+                    } else {
+                        line = testLine;
+                    }
+                }
+                page.drawText(line, { x, y: currentY, size, font: textFont, color: colors.text });
+                return currentY - (size + 10);
+            };
+
+            // --- HEADER SECTION ---
+            // 1. Logo (Left)
+            if (logoImage) {
+                const logoDims = logoImage.scaleToFit(140, 60);
+                page.drawImage(logoImage, {
+                    x: margin,
+                    y: y - logoDims.height,
+                    width: logoDims.width,
+                    height: logoDims.height,
+                });
+            }
+
+            // 2. Document Title (Right)
+            const title = "FICHE DE RÉQUISITION";
+            const titleWidth = boldFont.widthOfTextAtSize(title, 18);
+            page.drawText(title, {
+                x: width - margin - titleWidth,
+                y: y - 20,
+                size: 18,
+                font: boldFont,
+                color: colors.primary
+            });
+
+            y -= 80;
+
+            // --- REQUISITION ID BOX ---
+            const boxHeight = 35;
+            page.drawRectangle({
+                x: margin,
+                y: y - boxHeight,
+                width: contentWidth,
+                height: boxHeight,
+                color: colors.primary,
+            });
+            
+            page.drawText(`N° ${req.numero}`, {
+                x: margin + 10,
+                y: y - 24,
+                size: 16,
+                font: boldFont,
+                color: colors.white
+            });
+
+            const statusText = req.statut ? req.statut.toUpperCase() : 'INCONNU';
+            const statusWidth = boldFont.widthOfTextAtSize(statusText, 14);
+            page.drawText(statusText, {
+                x: width - margin - statusWidth - 10,
+                y: y - 23,
+                size: 14,
+                font: boldFont,
+                color: colors.white
+            });
+
+            y -= 50;
+
+            // --- INFO GRID ---
+            const infoBoxHeight = 100;
+            page.drawRectangle({
+                x: margin,
+                y: y - infoBoxHeight,
+                width: contentWidth,
+                height: infoBoxHeight,
+                color: colors.secondary,
+                borderColor: colors.border,
+                borderWidth: 1
+            });
+
+            // Grid Helpers
+            const drawInfo = (label, value, colX, rowY) => {
+                page.drawText(label, { x: colX, y: rowY, size: 9, font: boldFont, color: rgb(0.5, 0.5, 0.5) });
+                page.drawText(value || '-', { x: colX, y: rowY - 14, size: 11, font: font, color: colors.text });
+            };
+
+            const col1 = margin + 15;
+            const col2 = margin + 180;
+            const col3 = margin + 350;
+            
+            let rowY = y - 25;
+            
+            // Row 1
+            drawInfo('DATE', new Date(req.created_at).toLocaleDateString(), col1, rowY);
+            drawInfo('ÉMETTEUR', req.emetteur_nom, col2, rowY);
+            drawInfo('SERVICE', req.service_nom || req.service_code, col3, rowY);
+
+            rowY -= 45;
+
+            // Row 2
+            drawInfo('OBJET', req.objet, col1, rowY);
+            
+            // Money (Highlighted)
+            page.drawText('MONTANT USD', { x: col2, y: rowY, size: 9, font: boldFont, color: rgb(0.5, 0.5, 0.5) });
+            page.drawText(`${req.montant_usd || 0} $`, { x: col2, y: rowY - 14, size: 12, font: boldFont, color: colors.primary });
+
+            page.drawText('MONTANT CDF', { x: col3, y: rowY, size: 9, font: boldFont, color: rgb(0.5, 0.5, 0.5) });
+            page.drawText(`${req.montant_cdf || 0} FC`, { x: col3, y: rowY - 14, size: 12, font: boldFont, color: colors.primary });
+
+            y -= (infoBoxHeight + 30);
+
+            // --- DESCRIPTION ---
+            page.drawText('DESCRIPTION / MOTIF', { x: margin, y, size: 12, font: boldFont, color: colors.primary });
+            y -= 5;
+            page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: colors.border });
+            y -= 15;
+
+            y = drawWrappedText(req.commentaire_initial || 'Aucune description fournie.', margin, y, 11, font, contentWidth);
             y -= 20;
 
-            // 1.4 Fetch and Embed Validation History (Signatures)
+            // --- VALIDATION HISTORY (TABLE) ---
             const actions = await dbUtils.all(`
                 SELECT ra.*, u.nom_complet as utilisateur_nom, u.role as utilisateur_role
                 FROM requisition_actions ra
@@ -90,41 +204,74 @@ class PdfService {
             `, [req.id]);
 
             if (actions.length > 0) {
-                 if (y < 100) {
-                    page = mergedPdf.addPage();
-                    y = height - 50;
-                }
+                y = checkPageBreak(y, 100);
                 
-                page.drawText('Historique des Validations (Intervenants):', { x: 50, y, size: 14, font: boldFont });
-                y -= 25;
+                page.drawText('HISTORIQUE DES VALIDATIONS', { x: margin, y, size: 12, font: boldFont, color: colors.primary });
+                y -= 5;
+                page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: colors.border });
+                y -= 20;
+
+                // Table Header
+                const tableHeadY = y;
+                page.drawRectangle({ x: margin, y: y - 20, width: contentWidth, height: 20, color: rgb(0.9, 0.9, 0.9) });
+                
+                const colDate = margin + 5;
+                const colAction = margin + 110;
+                const colUser = margin + 200;
+                const colNote = margin + 350;
+
+                page.drawText('DATE', { x: colDate, y: y - 14, size: 9, font: boldFont });
+                page.drawText('ACTION', { x: colAction, y: y - 14, size: 9, font: boldFont });
+                page.drawText('INTERVENANT', { x: colUser, y: y - 14, size: 9, font: boldFont });
+                page.drawText('NOTE', { x: colNote, y: y - 14, size: 9, font: boldFont });
+                
+                y -= 30;
 
                 for (const action of actions) {
-                    if (y < 60) {
-                        page = mergedPdf.addPage();
-                        y = height - 50;
+                    y = checkPageBreak(y, 30);
+
+                    const dateStr = new Date(action.created_at).toLocaleDateString() + ' ' + new Date(action.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    page.drawText(dateStr, { x: colDate, y, size: 9, font });
+                    page.drawText(action.action.toUpperCase(), { x: colAction, y, size: 9, font: boldFont, color: colors.primary });
+                    
+                    // Wrap User Name if too long
+                    const userText = `${action.utilisateur_nom || 'Inconnu'} (${action.utilisateur_role || '-'})`;
+                    // Simplified wrap for user col (width approx 140)
+                    // ... avoiding complex wrap for now, just truncate if needed or let it overflow slightly
+                    page.drawText(userText, { x: colUser, y, size: 9, font });
+
+                    // Note
+                    if (action.commentaire) {
+                        // Simple wrap for note
+                        const noteWords = action.commentaire.split(' ');
+                        let noteLine = '';
+                        let noteY = y;
+                        for(const w of noteWords) {
+                            if (font.widthOfTextAtSize(noteLine + w, 9) > (width - margin - colNote)) {
+                                page.drawText(noteLine, { x: colNote, y: noteY, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
+                                noteY -= 11;
+                                noteLine = '';
+                            }
+                            noteLine += w + ' ';
+                        }
+                        page.drawText(noteLine, { x: colNote, y: noteY, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
+                        
+                        // Update main Y based on note height
+                        y = Math.min(y, noteY);
+                    } else {
+                        page.drawText('-', { x: colNote, y, size: 9, font, color: rgb(0.6, 0.6, 0.6) });
                     }
 
-                    const dateStr = new Date(action.created_at).toLocaleString();
-                    const userName = action.utilisateur_nom || 'Système/Inconnu';
-                    const role = action.utilisateur_role ? `(${action.utilisateur_role})` : '';
+                    y -= 20; // Row spacing
                     
-                    // Format: [Date] Action par User (Role)
-                    // e.g. [01/01/2024 10:00] Valider par Jean Dupont (analyste)
-                    const lineText = `[${dateStr}] ${action.action.toUpperCase()} par ${userName} ${role}`;
-                    
-                    page.drawText(lineText, { x: 50, y, size: 10, font });
-                    y -= 15;
-                    
-                    if (action.commentaire) {
-                         page.drawText(`   Note: ${action.commentaire}`, { x: 70, y, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
-                         y -= 15;
-                    }
-                    y -= 5;
+                    // Light separator line
+                    page.drawLine({ start: { x: margin, y: y + 10 }, end: { x: width - margin, y: y + 10 }, thickness: 0.5, color: colors.border });
                 }
                 y -= 20;
             }
 
-            // 1.5 Fetch and Embed Workflow Messages (Comments)
+            // --- COMMENTS (MESSAGES) ---
             const messages = await dbUtils.all(`
                 SELECT m.*, u.nom_complet as utilisateur_nom
                 FROM messages m
@@ -134,72 +281,59 @@ class PdfService {
             `, [req.id]);
 
             if (messages.length > 0) {
-                // Check if we need a new page for title
-                if (y < 100) {
-                    page = mergedPdf.addPage();
-                    y = height - 50;
-                }
+                y = checkPageBreak(y, 100);
 
-                page.drawText(`Historique des Commentaires (${messages.length}):`, { x: 50, y, size: 14, font: boldFont });
-                y -= 25;
+                page.drawText(`COMMENTAIRES (${messages.length})`, { x: margin, y, size: 12, font: boldFont, color: colors.primary });
+                y -= 5;
+                page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: colors.border });
+                y -= 20;
 
                 for (const msg of messages) {
-                    // Check for page break before starting a message block
-                    if (y < 80) {
-                        page = mergedPdf.addPage();
-                        y = height - 50;
-                    }
+                    y = checkPageBreak(y, 50);
 
-                    // Header: User - Date
+                    // Header: User & Date
                     const dateStr = new Date(msg.created_at).toLocaleString();
-                    page.drawText(`${msg.utilisateur_nom || 'Utilisateur inconnu'} - ${dateStr}`, { x: 50, y, size: 10, font: boldFont, color: rgb(0.3, 0.3, 0.3) });
+                    const headText = `${msg.utilisateur_nom || 'Utilisateur'} - ${dateStr}`;
+                    page.drawText(headText, { x: margin, y, size: 10, font: boldFont, color: colors.text });
                     y -= 15;
 
-                    // Message content
-                    y = drawWrappedText(msg.contenu, 60, y, 10, font, width - 110);
-                    y -= 10; // Spacing between messages
+                    // Content Box
+                    // Measure text height approx
+                    // Just draw wrapped text
+                    y = drawWrappedText(msg.contenu, margin + 10, y, 10, font, contentWidth - 20);
+                    
+                    y -= 10;
                 }
-                y -= 20; // Spacing after section
+                y -= 20;
             }
 
-            // 2. Fetch and Embed Attachments
+            // --- ATTACHMENTS ---
             const attachments = await dbUtils.all('SELECT * FROM pieces_jointes WHERE requisition_id = ?', [req.id]);
-
             if (attachments.length > 0) {
-                if (y < 100) {
-                    page = mergedPdf.addPage();
-                    y = height - 50;
-                }
-                page.drawText(`Pièces Jointes (${attachments.length}):`, { x: 50, y, size: 14, font: boldFont });
+                y = checkPageBreak(y, 100);
+                page.drawText(`PIÈCES JOINTES (${attachments.length})`, { x: margin, y, size: 12, font: boldFont, color: colors.primary });
                 y -= 20;
-                
+
                 for (const att of attachments) {
                     try {
                         const fileBytes = await StorageService.getFileBuffer(att.chemin_fichier);
-                        
-                        page.drawText(`- ${att.nom_fichier} (Inclus ci-après)`, { x: 60, y, size: 10, font, color: rgb(0, 0.5, 0) });
+                        page.drawText(`• ${att.nom_fichier}`, { x: margin + 10, y, size: 10, font, color: colors.primary });
                         y -= 15;
 
+                        // Embed Logic
                         const ext = path.extname(att.nom_fichier).toLowerCase();
-                        
                         if (ext === '.pdf') {
                             const attachmentDoc = await PDFDocument.load(fileBytes);
                             const copiedPages = await mergedPdf.copyPages(attachmentDoc, attachmentDoc.getPageIndices());
                             copiedPages.forEach((cp) => mergedPdf.addPage(cp));
                         } else if (['.jpg', '.jpeg', '.png'].includes(ext)) {
                             let img;
-                            if (ext === '.png') {
-                                img = await mergedPdf.embedPng(fileBytes);
-                            } else {
-                                img = await mergedPdf.embedJpg(fileBytes);
-                            }
+                            if (ext === '.png') img = await mergedPdf.embedPng(fileBytes);
+                            else img = await mergedPdf.embedJpg(fileBytes);
                             
                             const imgPage = mergedPdf.addPage();
                             const { width: pgWidth, height: pgHeight } = imgPage.getSize();
-                            
-                            // Scale image to fit page
-                            const imgDims = img.scaleToFit(pgWidth - 50, pgHeight - 50);
-                            
+                            const imgDims = img.scaleToFit(pgWidth - 100, pgHeight - 100);
                             imgPage.drawImage(img, {
                                 x: (pgWidth - imgDims.width) / 2,
                                 y: (pgHeight - imgDims.height) / 2,
@@ -208,14 +342,27 @@ class PdfService {
                             });
                         }
                     } catch (err) {
-                        console.error(`Erreur intégration pièce jointe ${att.nom_fichier}:`, err);
-                         page.drawText(`- ${att.nom_fichier} (Fichier introuvable ou erreur)`, { x: 60, y, size: 10, font, color: rgb(1, 0, 0) });
-                         y -= 15;
+                        console.error(`Erreur PJ ${att.nom_fichier}:`, err);
+                        page.drawText(`• ${att.nom_fichier} (Erreur de chargement)`, { x: margin + 10, y, size: 10, font, color: rgb(0.8, 0, 0) });
+                        y -= 15;
                     }
                 }
-            } else {
-                page.drawText('Aucune pièce jointe.', { x: 50, y, size: 12, font, color: rgb(0.5, 0.5, 0.5) });
             }
+        }
+
+        // --- GLOBAL PAGINATION ---
+        const pages = mergedPdf.getPages();
+        const totalPages = pages.length;
+        for (let i = 0; i < totalPages; i++) {
+            const p = pages[i];
+            const { width } = p.getSize();
+            p.drawText(`Page ${i + 1} / ${totalPages}`, {
+                x: width - 80,
+                y: 20,
+                size: 9,
+                font: font,
+                color: rgb(0.5, 0.5, 0.5),
+            });
         }
 
         return await mergedPdf.save();

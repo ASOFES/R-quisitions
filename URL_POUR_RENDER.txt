@@ -1,0 +1,12 @@
+Voici la valeur EXACTE à copier dans Render pour la variable DATABASE_URL.
+Cette URL utilise le "Connection Pooler" de Supabase qui est compatible IPv4 (ce qui corrige l'erreur ENETUNREACH sur Render).
+
+Clé : DATABASE_URL
+Valeur : postgres://postgres.zrzlgybewniufwhpdnpb:+243995178105@aws-1-eu-west-1.pooler.supabase.com:5432/postgres
+
+Instructions :
+1. Allez dans le tableau de bord Render.
+2. Sélectionnez votre service "backend" (ou le service web).
+3. Cliquez sur "Environment".
+4. Modifiez "DATABASE_URL" avec la valeur ci-dessus.
+5. Sauvegardez. Render redéploiera automatiquement.
