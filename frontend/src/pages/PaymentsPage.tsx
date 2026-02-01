@@ -307,6 +307,7 @@ const PaymentsPage: React.FC = () => {
       'Objet': r.objet,
       'Service': r.service_code,
       'Initiateur': r.emetteur_nom,
+      'Mode': r.mode_paiement || 'Non défini',
       'Montant USD': r.montant_usd || 0,
       'Montant CDF': r.montant_cdf || 0,
       'Pièces': r.nb_pieces || 0
@@ -336,6 +337,7 @@ const PaymentsPage: React.FC = () => {
       { header: "Objet", dataKey: "objet" },
       { header: "Service", dataKey: "service" },
       { header: "Initiateur", dataKey: "emetteur" },
+      { header: "Mode", dataKey: "mode" },
       { header: "Montant USD", dataKey: "usd" },
       { header: "Montant CDF", dataKey: "cdf" },
       { header: "Pièces", dataKey: "pieces" }
@@ -353,6 +355,7 @@ const PaymentsPage: React.FC = () => {
       objet: r.objet,
       service: r.service_code,
       emetteur: r.emetteur_nom,
+      mode: r.mode_paiement || '-',
       usd: formatMoneyPDF(r.montant_usd, 'USD'),
       cdf: formatMoneyPDF(r.montant_cdf, 'CDF'),
       pieces: r.nb_pieces || '-'
