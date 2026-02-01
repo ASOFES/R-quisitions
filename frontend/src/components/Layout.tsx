@@ -84,8 +84,19 @@ const Layout: React.FC = () => {
     navigate('/login');
   };
 
+  const getProfilePath = (role?: string) => {
+    switch (role) {
+      case 'analyste': return '/analyst-profile';
+      case 'emetteur': return '/emitter-profile';
+      case 'validateur': return '/pm-profile';
+      case 'gm': return '/gm-profile';
+      default: return '/profile';
+    }
+  };
+
   const menuItems = [
     { text: 'Tableau de bord', icon: <DashboardIcon />, path: '/dashboard', roles: ['all'] },
+    { text: 'Espace Analyste', icon: <AssignmentIcon />, path: '/analyst-profile', roles: ['analyste', 'admin'] },
     { text: 'Mes Réquisitions', icon: <AssignmentIcon />, path: '/requisitions', roles: ['all'] },
     { text: 'Nouvelle demande', icon: <AddIcon />, path: '/requisitions/new', roles: ['emetteur', 'admin'] },
     { text: 'Utilisateurs', icon: <PeopleIcon />, path: '/users', roles: ['admin'] },
@@ -252,7 +263,7 @@ const Layout: React.FC = () => {
               transformOrigin={{ horizontal: 'right', vertical: 'top' }}
               anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
             >
-              <MenuItem onClick={() => navigate('/profile')}>
+              <MenuItem onClick={() => navigate(getProfilePath(user?.role))}>
                 <ListItemIcon><PeopleIcon fontSize="small" /></ListItemIcon>
                 Mon Profil
               </MenuItem>
