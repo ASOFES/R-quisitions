@@ -6,10 +6,18 @@ const StorageService = require('./StorageService');
 
 class PdfService {
     async compileRequisitionsPdf(requisitions) {
+        console.log(`Début compilation PDF pour ${requisitions.length} réquisitions`);
         const mergedPdf = await PDFDocument.create();
         const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
         const boldFont = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
         
+        // Helper pour sécuriser le texte (éviter crash sur caractères non supportés)
+        const safeText = (text) => {
+            if (!text) return '';
+            // Remplacer les caractères non-WinAnsi par ?
+            return text.replace(/[^\x00-\xFF]/g, '?');
+        };
+
         // --- CONSTANTS & STYLES ---
         const colors = {
             primary: rgb(0, 0.35, 0.55),     // Deep Blue
@@ -336,15 +344,20 @@ class PdfService {
                             const copiedPages = await mergedPdf.copyPages(attachmentDoc, attachmentDoc.getPageIndices());
                             copiedPages.forEach((cp) => {
                                 const newPage = mergedPdf.addPage(cp);
-                                // Add Header to attachment page
-                                const { width: npWidth, height: npHeight } = newPage.getSize();
-                                newPage.drawText(`Annexe - Réquisition N° ${req.numero} - Initiateur : ${req.emetteur_nom}`, {
-                                    x: 50,
-                                    y: npHeight - 30,
-                                    size: 10,
-                                    font: boldFont,
-                                    color: colors.primary
-                                });
+                                try {
+                                    // Add Header to attachment page
+                                    const { width: npWidth, height: npHeight } = newPage.getSize();
+                                    const headerText = safeText(`Annexe - Réquisition N° ${req.numero} - Initiateur : ${req.emetteur_nom || 'Inconnu'}`);
+                                    newPage.drawText(headerText, {
+                                        x: 50,
+                                        y: npHeight - 30,
+                                        size: 10,
+                                        font: boldFont,
+                                        color: colors.primary
+                                    });
+                                } catch (headerErr) {
+                                    console.error('Erreur header PDF annexe:', headerErr);
+                                }
                             });
                         } else if (['.jpg', '.jpeg', '.png'].includes(ext)) {
                             let img;
@@ -354,14 +367,19 @@ class PdfService {
                             const imgPage = mergedPdf.addPage();
                             const { width: pgWidth, height: pgHeight } = imgPage.getSize();
                             
-                            // Add Header to image page
-                            imgPage.drawText(`Annexe - Réquisition N° ${req.numero} - Initiateur : ${req.emetteur_nom}`, {
-                                x: 50,
-                                y: pgHeight - 30,
-                                size: 10,
-                                font: boldFont,
-                                color: colors.primary
-                            });
+                            try {
+                                // Add Header to image page
+                                const headerText = safeText(`Annexe - Réquisition N° ${req.numero} - Initiateur : ${req.emetteur_nom || 'Inconnu'}`);
+                                imgPage.drawText(headerText, {
+                                    x: 50,
+                                    y: pgHeight - 30,
+                                    size: 10,
+                                    font: boldFont,
+                                    color: colors.primary
+                                });
+                            } catch (headerErr) {
+                                console.error('Erreur header Image annexe:', headerErr);
+                            }
 
                             const imgDims = img.scaleToFit(pgWidth - 100, pgHeight - 100);
                             imgPage.drawImage(img, {
