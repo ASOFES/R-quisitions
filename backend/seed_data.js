@@ -53,7 +53,7 @@ async function seedData() {
         
         const kinZone = await dbUtils.get('SELECT id FROM zones WHERE code = ?', ['KIN']);
 
-        const passwordHash = await bcrypt.hash('patrick@22', 10);
+        const passwordHash = await bcrypt.hash('password123', 10);
 
         const users = [
             { username: 'toto', role: 'admin', service: null },
@@ -61,7 +61,10 @@ async function seedData() {
             { username: 'edla.m', role: 'emetteur', service: rhService },
             { username: 'analyste', role: 'analyste', service: finService },
             { username: 'validateur', role: 'validateur', service: itService },
-            { username: 'comptable', role: 'comptable', service: finService }
+            { username: 'comptable', role: 'comptable', service: finService },
+            { username: 'analyste.compta', role: 'analyste', service: finService },
+            { username: 'pm.user', role: 'pm', service: itService },
+            { username: 'gm.user', role: 'gm', service: itService }
         ];
 
         for (const user of users) {
