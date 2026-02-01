@@ -24,37 +24,8 @@ class StorageService {
         }
     }
 
-    async initBucket() {
-        try {
-            const { data: buckets, error: listError } = await this.supabase.storage.listBuckets();
-            
-            if (listError) {
-                console.error('❌ Erreur lors du listing des buckets:', listError);
-                return;
-            }
+    // initBucket supprimé pour éviter les erreurs 403 sur Render/Supabase (création manuelle requise)
 
-            const bucketExists = buckets.some(b => b.name === this.bucket);
-
-            if (!bucketExists) {
-                console.log(`🪣 Création du bucket '${this.bucket}'...`);
-                const { data, error } = await this.supabase.storage.createBucket(this.bucket, {
-                    public: false,
-                    fileSizeLimit: 10485760, // 10MB
-                    allowedMimeTypes: ['image/png', 'image/jpeg', 'application/pdf']
-                });
-                
-                if (error) {
-                    console.error(`❌ Erreur création bucket '${this.bucket}':`, error);
-                } else {
-                    console.log(`✅ Bucket '${this.bucket}' créé avec succès.`);
-                }
-            } else {
-                console.log(`✅ Bucket '${this.bucket}' existe déjà.`);
-            }
-        } catch (err) {
-            console.error('❌ Exception initBucket:', err);
-        }
-    }
 
     // Upload file (takes a multer file object)
     async uploadFile(file) {
