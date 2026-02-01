@@ -56,24 +56,76 @@ class PdfService {
             y -= 20;
             
             // Basic text wrapping for description
-            const description = req.commentaire_initial || 'Aucun commentaire.';
-            const words = description.split(' ');
-            let line = '';
-            for (const word of words) {
-                if (font.widthOfTextAtSize(line + word, 12) > width - 100) {
-                    page.drawText(line, { x: 50, y, size: 12, font });
-                    y -= 15;
-                    line = '';
+            const drawWrappedText = (text, x, y, size, font, maxWidth) => {
+                const words = (text || '').split(' ');
+                let line = '';
+                let currentY = y;
+                for (const word of words) {
+                    if (font.widthOfTextAtSize(line + word, size) > maxWidth) {
+                        page.drawText(line, { x, y: currentY, size, font });
+                        currentY -= size + 5;
+                        line = '';
+                        // Check for page break
+                        if (currentY < 50) {
+                             page = mergedPdf.addPage();
+                             currentY = height - 50;
+                        }
+                    }
+                    line += word + ' ';
                 }
-                line += word + ' ';
+                page.drawText(line, { x, y: currentY, size, font });
+                return currentY - 20;
+            };
+
+            y = drawWrappedText(req.commentaire_initial || 'Aucun commentaire.', 50, y, 12, font, width - 100);
+            y -= 20;
+
+            // 1.5 Fetch and Embed Workflow Messages (Comments)
+            const messages = await dbUtils.all(`
+                SELECT m.*, u.nom_complet as utilisateur_nom
+                FROM messages m
+                LEFT JOIN users u ON m.utilisateur_id = u.id
+                WHERE m.requisition_id = ?
+                ORDER BY m.created_at ASC
+            `, [req.id]);
+
+            if (messages.length > 0) {
+                // Check if we need a new page for title
+                if (y < 100) {
+                    page = mergedPdf.addPage();
+                    y = height - 50;
+                }
+
+                page.drawText(`Historique des Commentaires (${messages.length}):`, { x: 50, y, size: 14, font: boldFont });
+                y -= 25;
+
+                for (const msg of messages) {
+                    // Check for page break before starting a message block
+                    if (y < 80) {
+                        page = mergedPdf.addPage();
+                        y = height - 50;
+                    }
+
+                    // Header: User - Date
+                    const dateStr = new Date(msg.created_at).toLocaleString();
+                    page.drawText(`${msg.utilisateur_nom || 'Utilisateur inconnu'} - ${dateStr}`, { x: 50, y, size: 10, font: boldFont, color: rgb(0.3, 0.3, 0.3) });
+                    y -= 15;
+
+                    // Message content
+                    y = drawWrappedText(msg.contenu, 60, y, 10, font, width - 110);
+                    y -= 10; // Spacing between messages
+                }
+                y -= 20; // Spacing after section
             }
-            page.drawText(line, { x: 50, y, size: 12, font });
-            y -= 40;
 
             // 2. Fetch and Embed Attachments
             const attachments = await dbUtils.all('SELECT * FROM pieces_jointes WHERE requisition_id = ?', [req.id]);
 
             if (attachments.length > 0) {
+                if (y < 100) {
+                    page = mergedPdf.addPage();
+                    y = height - 50;
+                }
                 page.drawText(`Pièces Jointes (${attachments.length}):`, { x: 50, y, size: 14, font: boldFont });
                 y -= 20;
                 
