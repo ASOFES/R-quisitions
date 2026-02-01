@@ -296,4 +296,54 @@ router.post('/:id/terminer', authenticateToken, requireRole(['analyste', 'admin'
   }
 });
 
+// Obtenir les réquisitions à classer (pour analyste)
+router.get('/a-classer', authenticateToken, requireRole(['analyste', 'admin']), async (req, res) => {
+  try {
+    const requisitions = await dbUtils.all(`
+      SELECT r.*, u.nom_complet as emetteur_nom, s.code as service_code, s.nom as service_nom
+      FROM requisitions r
+      JOIN users u ON r.emetteur_id = u.id
+      JOIN services s ON r.service_id = s.id
+      WHERE r.niveau = 'paiement' AND r.statut = 'validee'
+      ORDER BY r.created_at ASC
+    `);
+    res.json(requisitions);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des réquisitions à classer:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Définir le mode de paiement (Cash/Banque)
+router.put('/:id/mode', authenticateToken, requireRole(['analyste', 'admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { mode_paiement } = req.body;
+
+    if (!['Cash', 'Banque'].includes(mode_paiement)) {
+      return res.status(400).json({ error: 'Mode de paiement invalide (Cash ou Banque)' });
+    }
+
+    const requisition = await dbUtils.get('SELECT * FROM requisitions WHERE id = ?', [id]);
+    if (!requisition) {
+        return res.status(404).json({ error: 'Réquisition non trouvée' });
+    }
+    
+    // On permet la modification si on est au niveau paiement
+    if (requisition.niveau !== 'paiement') {
+        return res.status(400).json({ error: 'La réquisition n\'est pas au niveau paiement' });
+    }
+
+    await dbUtils.run(
+      'UPDATE requisitions SET mode_paiement = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [mode_paiement, id]
+    );
+
+    res.json({ message: 'Mode de paiement mis à jour', mode_paiement });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du mode de paiement:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 module.exports = router;

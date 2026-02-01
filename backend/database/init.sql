@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS requisitions (
   niveau VARCHAR(20) NOT NULL DEFAULT 'emetteur',
   niveau_retour VARCHAR(20),
   statut VARCHAR(20) NOT NULL DEFAULT 'en_cours',
+  mode_paiement VARCHAR(20),
   related_to INTEGER,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

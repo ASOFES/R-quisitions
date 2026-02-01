@@ -630,6 +630,7 @@ const PaymentsPage: React.FC = () => {
                       <TableCell>Objet</TableCell>
                       <TableCell>Service</TableCell>
                       <TableCell>Initiateur</TableCell>
+                      <TableCell>Mode</TableCell>
                       <TableCell align="right">Montant USD</TableCell>
                       <TableCell align="right">Montant CDF</TableCell>
                       <TableCell align="center">Pièces</TableCell>
@@ -660,6 +661,7 @@ const PaymentsPage: React.FC = () => {
                               <Checkbox
                                 checked={isSelected}
                                 onChange={() => handleSelectOne(req.id)}
+                                disabled={!req.mode_paiement}
                               />
                             </TableCell>
                             <TableCell sx={{ fontWeight: 'bold' }}>{req.numero}</TableCell>
@@ -668,6 +670,13 @@ const PaymentsPage: React.FC = () => {
                               <Chip label={req.service_code} size="small" variant="outlined" />
                             </TableCell>
                             <TableCell>{req.emetteur_nom}</TableCell>
+                            <TableCell>
+                              {req.mode_paiement ? (
+                                <Chip label={req.mode_paiement} color={req.mode_paiement === 'Cash' ? 'success' : 'primary'} size="small" />
+                              ) : (
+                                <Typography variant="caption" color="error">À définir</Typography>
+                              )}
+                            </TableCell>
                             <TableCell align="right">
                               {req.montant_usd ? formatCurrency(req.montant_usd, 'USD') : '-'}
                             </TableCell>

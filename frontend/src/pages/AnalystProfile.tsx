@@ -75,6 +75,7 @@ const AnalystProfile: React.FC = () => {
   
   const [profile, setProfile] = useState<AnalystProfileData | null>(null);
   const [recentRequisitions, setRecentRequisitions] = useState<Requisition[]>([]);
+  const [paymentRequisitions, setPaymentRequisitions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState<Partial<AnalystProfileData>>({});
@@ -105,6 +106,18 @@ const AnalystProfile: React.FC = () => {
       if (response.ok) {
         const allRequisitions = await response.json();
         console.log('Réquisitions récupérées depuis le backend (analyste):', allRequisitions);
+
+        // Fetch requisitions to classify (payment mode)
+        const paymentResponse = await fetch(`${API_BASE_URL}/api/payments/a-classer`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (paymentResponse.ok) {
+          const paymentData = await paymentResponse.json();
+          setPaymentRequisitions(paymentData);
+        }
         
         // Filtrer les réquisitions qui nécessitent une analyse
         const requisitionsToAnalyse = allRequisitions.filter((req: any) => 
@@ -188,6 +201,32 @@ const AnalystProfile: React.FC = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleUpdatePaymentMode = async (id: number, mode: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+  
+      const response = await fetch(`${API_BASE_URL}/api/payments/${id}/mode`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ mode_paiement: mode })
+      });
+  
+      if (response.ok) {
+        setShowSuccess(true);
+        loadProfileData(); // Refresh
+      } else {
+        alert('Erreur lors de la mise à jour');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur serveur');
+    }
   };
 
   const getStatutColor = (statut: string) => {
@@ -477,6 +516,73 @@ const AnalystProfile: React.FC = () => {
               </CardContent>
             </Card>
           )}
+
+          {/* Réquisitions à classer (Paiement) */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                <AccountBalance sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Assignation Mode de Paiement (Post-Validation GM)
+              </Typography>
+              {paymentRequisitions.length === 0 ? (
+                 <Typography variant="body2" color="text.secondary">
+                   Aucune réquisition en attente de classification.
+                 </Typography>
+              ) : (
+                <Box sx={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', borderBottom: '1px solid #eee' }}>
+                        <th style={{ padding: '8px' }}>Ref</th>
+                        <th style={{ padding: '8px' }}>Objet</th>
+                        <th style={{ padding: '8px' }}>Montant</th>
+                        <th style={{ padding: '8px' }}>Mode Actuel</th>
+                        <th style={{ padding: '8px' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paymentRequisitions.map((req) => (
+                        <tr key={req.id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '8px' }}>{req.numero}</td>
+                          <td style={{ padding: '8px' }}>{req.objet}</td>
+                          <td style={{ padding: '8px' }}>
+                             {req.montant_usd ? `${req.montant_usd} USD` : `${req.montant_cdf} CDF`}
+                          </td>
+                          <td style={{ padding: '8px' }}>
+                            {req.mode_paiement ? (
+                               <Chip label={req.mode_paiement} color={req.mode_paiement === 'Cash' ? 'success' : 'primary'} size="small" />
+                            ) : (
+                               <Typography variant="caption" color="error">Non défini</Typography>
+                            )}
+                          </td>
+                          <td style={{ padding: '8px' }}>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                               <Button 
+                                 variant={req.mode_paiement === 'Cash' ? "contained" : "outlined"} 
+                                 color="success" 
+                                 size="small"
+                                 onClick={() => handleUpdatePaymentMode(req.id, 'Cash')}
+                               >
+                                 Cash
+                               </Button>
+                               <Button 
+                                 variant={req.mode_paiement === 'Banque' ? "contained" : "outlined"} 
+                                 color="primary" 
+                                 size="small"
+                                 onClick={() => handleUpdatePaymentMode(req.id, 'Banque')}
+                               >
+                                 Banque
+                               </Button>
+                            </Box>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Réquisitions à analyser */}
           <Card>
