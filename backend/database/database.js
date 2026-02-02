@@ -379,4 +379,8 @@ const dbUtils = {
   }
 };
 
-module.exports = { db: dbInstance, dbUtils, dbReady };
+module.exports = { 
+  get db() { return dbInstance; }, 
+  dbUtils, 
+  dbReady 
+};

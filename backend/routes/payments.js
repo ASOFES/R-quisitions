@@ -4,6 +4,15 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Utility for robust number parsing
+const parseAmount = (val) => {
+  if (!val) return 0;
+  // Clean string: remove spaces, currency symbols, and ensure dot for decimal
+  const str = String(val).replace(/[^0-9.,-]/g, '').replace(/,/g, '.');
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+};
+
 // Obtenir les fonds disponibles
 router.get('/fonds', authenticateToken, requireRole(['comptable', 'admin', 'gm']), async (req, res) => {
   try {
@@ -43,16 +52,21 @@ router.post('/ravitaillement', authenticateToken, requireRole(['comptable', 'adm
       return res.status(400).json({ error: 'Devise non valide (USD ou CDF requis)' });
     }
 
+    const cleanMontant = parseAmount(montant);
+    if (cleanMontant <= 0) {
+       return res.status(400).json({ error: 'Montant invalide' });
+    }
+
     // Ajouter le mouvement d'entrée
     await dbUtils.run(
       'INSERT INTO mouvements_fonds (type_mouvement, montant, devise, description) VALUES (?, ?, ?, ?)',
-      ['entree', montant, devise, description || 'Ravitaillement de caisse']
+      ['entree', cleanMontant, devise, description || 'Ravitaillement de caisse']
     );
 
     // Mettre à jour les fonds disponibles
     await dbUtils.run(
       'UPDATE fonds SET montant_disponible = montant_disponible + ?, updated_at = CURRENT_TIMESTAMP WHERE devise = ?',
-      [montant, devise]
+      [cleanMontant, devise]
     );
 
     res.json({ message: 'Ravitaillement effectué avec succès' });

@@ -9,6 +9,15 @@ const StorageService = require('../services/StorageService');
 
 const router = express.Router();
 
+// Utility for robust number parsing
+const parseAmount = (val) => {
+  if (!val) return 0;
+  // Clean string: remove spaces, currency symbols, and ensure dot for decimal
+  const str = String(val).replace(/[^0-9.,-]/g, '').replace(/,/g, '.');
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+};
+
 // Configuration de multer pour l'upload de fichiers (MemoryStorage pour compatibilité Supabase)
 const storage = multer.memoryStorage();
 
@@ -221,8 +230,8 @@ router.post('/', authenticateToken, requireRole(['emetteur', 'admin']), upload.a
     }
 
     // Calculate totals from items if not provided or to override
-    let finalMontantUsd = montant_usd || 0;
-    let finalMontantCdf = montant_cdf || 0;
+    let finalMontantUsd = parseAmount(montant_usd);
+    let finalMontantCdf = parseAmount(montant_cdf);
 
     if (parsedItems.length > 0) {
         finalMontantUsd = 0; // Reset if items exist
