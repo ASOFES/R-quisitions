@@ -77,7 +77,7 @@ router.post('/ravitaillement', authenticateToken, requireRole(['comptable', 'adm
 });
 
 // Obtenir les réquisitions à payer
-router.get('/a-payer', authenticateToken, requireRole(['comptable', 'admin']), async (req, res) => {
+router.get('/a-payer', authenticateToken, requireRole(['comptable', 'admin', 'gm']), async (req, res) => {
   try {
     const requisitions = await dbUtils.all(`
       SELECT r.*, u.nom_complet as emetteur_nom, s.code as service_code, s.nom as service_nom,
