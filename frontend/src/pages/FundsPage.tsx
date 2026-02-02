@@ -476,11 +476,11 @@ const FundsPage: React.FC = () => {
             <Stack direction="row" spacing={4} sx={{ width: '100%', pt: 2, borderTop: '1px solid rgba(21, 101, 192, 0.2)', justifyContent: 'center' }}>
                <Box sx={{ textAlign: 'center' }}>
                  <Typography variant="caption" display="block" color="text.secondary">Entrées (filtre)</Typography>
-                 <Typography variant="body1" color="success.main" fontWeight="bold">+{formatCurrency(stats.usdIn, 'USD')}</Typography>
+                 <Typography variant="body1" color="success.main" fontWeight="bold">+{formatCurrency(isNaN(stats.usdIn) ? 0 : stats.usdIn, 'USD')}</Typography>
                </Box>
                <Box sx={{ textAlign: 'center' }}>
                  <Typography variant="caption" display="block" color="text.secondary">Sorties (filtre)</Typography>
-                 <Typography variant="body1" color="error.main" fontWeight="bold">-{formatCurrency(stats.usdOut, 'USD')}</Typography>
+                 <Typography variant="body1" color="error.main" fontWeight="bold">-{formatCurrency(isNaN(stats.usdOut) ? 0 : stats.usdOut, 'USD')}</Typography>
                </Box>
             </Stack>
           </Paper>
