@@ -282,8 +282,18 @@ const FundsPage: React.FC = () => {
         api.get('/payments/fonds'),
         api.get('/payments/mouvements')
       ]);
-      setFonds(fondsRes.data);
-      setMouvements(mouvRes.data);
+      
+      // Mapping et conversion des types pour éviter les problèmes de strings/NaN
+      setFonds(fondsRes.data.map((f: any) => ({
+        ...f,
+        solde: Number(f.montant_disponible || f.solde || 0)
+      })));
+
+      setMouvements(mouvRes.data.map((m: any) => ({
+        ...m,
+        montant: Number(m.montant)
+      })));
+
       setError(null);
     } catch (err) {
       console.error('Erreur chargement données:', err);
