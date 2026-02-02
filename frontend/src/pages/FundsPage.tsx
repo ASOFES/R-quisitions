@@ -149,7 +149,10 @@ const FundsPage: React.FC = () => {
 
   const stats = React.useMemo(() => {
     return filteredMouvements.reduce((acc, m) => {
-      const montant = Number(m.montant) || 0; // Double safety check
+      // Ensure we have a valid number
+      let montant = Number(m.montant);
+      if (isNaN(montant)) montant = 0;
+      
       if (m.devise === 'USD') {
         if (m.type_mouvement === 'entree') acc.usdIn += montant;
         else acc.usdOut += montant;
@@ -281,10 +284,26 @@ const FundsPage: React.FC = () => {
       setLoading(true);
   const parseAmount = (val: any) => {
     if (val === null || val === undefined) return 0;
+    
+    // First try standard conversion
     const num = Number(val);
     if (!isNaN(num)) return num;
-    // Try cleaning string (remove spaces, keep dot and minus)
-    const clean = String(val).replace(/[^0-9.-]/g, '');
+
+    // Handle strings with potential formatting
+    let strVal = String(val);
+    
+    // Replace comma with dot for decimal separator if likely European/French format
+    if (strVal.includes(',') && !strVal.includes('.')) {
+      strVal = strVal.replace(/,/g, '.');
+    } else if (strVal.includes(',') && strVal.includes('.')) {
+      // If both, assume comma is thousands separator (remove it)
+      strVal = strVal.replace(/,/g, '');
+    }
+
+    // Remove all non-numeric characters except dot and minus
+    // Note: This removes spaces which might be thousand separators
+    const clean = strVal.replace(/[^0-9.-]/g, '');
+    
     const parsed = Number(clean);
     return isNaN(parsed) ? 0 : parsed;
   };
@@ -326,16 +345,12 @@ const FundsPage: React.FC = () => {
   }, []);
 
   const handleOpenDialog = () => {
-    setFormData({
-      devise: 'USD',
-      montant: '',
-      description: ''
-    });
     setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
+    setFormData({ devise: 'USD', montant: '', description: '' });
   };
 
   const handleSubmit = async () => {
@@ -363,6 +378,9 @@ const FundsPage: React.FC = () => {
   };
 
   const formatCurrency = (amount: number, currency: string) => {
+    if (amount === undefined || amount === null || isNaN(amount)) {
+      return `0,00 ${currency === 'USD' ? '$US' : 'FC'}`;
+    }
     return new Intl.NumberFormat('fr-CD', { 
       style: 'currency', 
       currency: currency 
