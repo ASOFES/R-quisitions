@@ -52,6 +52,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { getLogoBase64 } from '../utils/logoUtils';
 import { Requisition, RequisitionItem } from '../services/RequisitionService';
 import { API_BASE_URL } from '../config';
@@ -98,6 +99,7 @@ interface Mouvement {
 
 const FundsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [fonds, setFonds] = useState<Fond[]>([]);
   const [mouvements, setMouvements] = useState<Mouvement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -412,6 +414,7 @@ const FundsPage: React.FC = () => {
           </Button>
           <Typography variant="h4">Gestion des fonds</Typography>
         </Box>
+        {['comptable', 'admin'].includes(user?.role || '') && (
         <Button 
           variant="contained" 
           color="primary" 
@@ -420,6 +423,7 @@ const FundsPage: React.FC = () => {
         >
           Ravitailler la Caisse
         </Button>
+        )}
       </Box>
       
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}

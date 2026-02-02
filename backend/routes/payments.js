@@ -5,7 +5,7 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const router = express.Router();
 
 // Obtenir les fonds disponibles
-router.get('/fonds', authenticateToken, requireRole(['comptable', 'admin']), async (req, res) => {
+router.get('/fonds', authenticateToken, requireRole(['comptable', 'admin', 'gm']), async (req, res) => {
   try {
     const fonds = await dbUtils.all('SELECT * FROM fonds ORDER BY devise');
     res.json(fonds);
@@ -16,7 +16,7 @@ router.get('/fonds', authenticateToken, requireRole(['comptable', 'admin']), asy
 });
 
 // Obtenir les mouvements de fonds
-router.get('/mouvements', authenticateToken, requireRole(['comptable', 'admin']), async (req, res) => {
+router.get('/mouvements', authenticateToken, requireRole(['comptable', 'admin', 'gm']), async (req, res) => {
   try {
     const mouvements = await dbUtils.all(`
       SELECT * FROM mouvements_fonds 
