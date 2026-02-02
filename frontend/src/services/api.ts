@@ -98,6 +98,11 @@ export interface Requisition {
   service_code: string;
   service_nom: string;
   nb_pieces?: number;
+  mode_paiement?: string;
+}
+  mode_paiement?: string;
+}
+  mode_paiement?: string;
 }
 
 export interface RequisitionAction {
