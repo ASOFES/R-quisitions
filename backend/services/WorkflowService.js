@@ -7,7 +7,8 @@ const WORKFLOW_STEPS = {
   'validateur': { valider: 'gm', modifier: 'challenger', refuser: 'emetteur' },
   'pm': { valider: 'gm', modifier: 'challenger', refuser: 'emetteur' },
   'gm': { valider: 'paiement', modifier: 'validateur', refuser: 'emetteur' },
-  'comptable': { valider: 'termine', modifier: 'gm', refuser: 'gm' }
+  'comptable': { valider: 'termine', modifier: 'gm', refuser: 'gm' },
+  'paiement': { valider: 'termine', modifier: 'gm', refuser: 'gm' }
 };
 
 class WorkflowService {
@@ -38,7 +39,7 @@ class WorkflowService {
   }
 
   // Effectuer une transition de workflow
-  static async processAction(requisitionId, action, userRole, userId, commentaire, isAuto = false) {
+  static async processAction(requisitionId, action, userRole, userId, commentaire, isAuto = false, mode_paiement = null) {
     const requisition = await dbUtils.get('SELECT * FROM requisitions WHERE id = ?', [requisitionId]);
     if (!requisition) throw new Error('Réquisition non trouvée');
 
@@ -86,10 +87,12 @@ class WorkflowService {
              let nouveauStatut = requisition.statut;
              if (currentNiveau === 'gm') {
                  nouveauStatut = 'validee';
-             } else if (currentNiveau === 'comptable') {
+             } else if (currentNiveau === 'comptable' || currentNiveau === 'paiement') {
                  nouveauStatut = 'payee';
-                 // NOTE: La logique de paiement (fonds) est complexe et reste pour l'instant dans le contrôleur ou doit être migrée ici.
-                 // Pour l'instant l'auto-validation ne s'applique PAS au comptable (trop risqué), donc on gère les niveaux intermédiaires.
+                 // Enregistrer le mode de paiement si fourni
+                 if (mode_paiement) {
+                     await dbUtils.run('UPDATE requisitions SET mode_paiement = ? WHERE id = ?', [mode_paiement, requisitionId]);
+                 }
              }
              
              await dbUtils.run('UPDATE requisitions SET statut = ?, niveau = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [nouveauStatut, niveauApres, requisitionId]);

@@ -497,7 +497,7 @@ router.put('/:id/action', authenticateToken, checkRequisitionAccess, async (req,
     }
 
     // Utilisation du WorkflowService pour traiter l'action
-    const result = await WorkflowService.processAction(id, action, userRole, user.id, commentaire);
+    const result = await WorkflowService.processAction(id, action, userRole, user.id, commentaire, false, mode_paiement);
 
     res.json({
       message: `Action ${action} effectuée avec succès`,

@@ -157,16 +157,42 @@ function initializeDatabasePostgres() {
                 else {
                     console.log('✅ Schéma PostgreSQL vérifié/initialisé.');
                     // Migration pour augmenter la taille de la colonne numero si nécessaire
-                    dbInstance.query('ALTER TABLE requisitions ALTER COLUMN numero TYPE VARCHAR(50)', (alterErr) => {
-                        if (alterErr) {
-                           // Ignorer si l'erreur est liée au fait que c'est déjà fait ou autre, mais logger
-                           console.log('Note: Vérification/Ajustement de la colonne numero (VARCHAR 50) -', alterErr.message);
-                        } else {
-                           console.log('✅ Colonne numero ajustée à VARCHAR(50).');
+                    const migrations = [
+                        'ALTER TABLE requisitions ALTER COLUMN numero TYPE VARCHAR(50)',
+                        'ALTER TABLE requisitions ADD COLUMN IF NOT EXISTS related_to INTEGER',
+                        'ALTER TABLE requisitions ADD COLUMN IF NOT EXISTS niveau_retour VARCHAR(20)',
+                        'ALTER TABLE requisitions ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(id)',
+                        'ALTER TABLE requisitions ADD COLUMN IF NOT EXISTS mode_paiement VARCHAR(20)',
+                        'ALTER TABLE users ADD COLUMN IF NOT EXISTS zone_id INTEGER REFERENCES zones(id)',
+                        'ALTER TABLE lignes_requisition ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(id)'
+                    ];
+
+                    // Exécuter les migrations en séquence
+                    (async () => {
+                        for (const migration of migrations) {
+                            try {
+                                await new Promise((res, rej) => {
+                                    dbInstance.query(migration, (err) => {
+                                        if (err) {
+                                            // Ignorer les erreurs "column already exists" si IF NOT EXISTS n'est pas supporté (vieux PG)
+                                            if (err.code === '42701') { // duplicate_column
+                                                // console.log('Note: Colonne existe déjà');
+                                            } else {
+                                                console.log(`Note migration PG (${migration}):`, err.message);
+                                            }
+                                        }
+                                        res();
+                                    });
+                                });
+                            } catch (e) {
+                                console.error('Erreur migration:', e);
+                            }
                         }
+                        console.log('✅ Migrations PostgreSQL terminées.');
                         resolve();
-                    });
-                    return; // Resolve is called inside callback
+                    })();
+                    
+                    return; // Resolve is called inside async block
                 }
                 resolve();
             });
@@ -200,7 +226,8 @@ function runSqliteMigrations() {
         'ALTER TABLE requisitions ADD COLUMN related_to INTEGER',
         'ALTER TABLE users ADD COLUMN zone_id INTEGER REFERENCES zones(id)',
         'ALTER TABLE requisitions ADD COLUMN niveau_retour VARCHAR(20)',
-        'ALTER TABLE requisitions ADD COLUMN site_id INTEGER REFERENCES sites(id)'
+        'ALTER TABLE requisitions ADD COLUMN site_id INTEGER REFERENCES sites(id)',
+        'ALTER TABLE requisitions ADD COLUMN mode_paiement VARCHAR(20)'
     ];
 
     migrations.forEach(migration => {

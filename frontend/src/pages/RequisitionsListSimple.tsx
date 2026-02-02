@@ -92,6 +92,7 @@ const RequisitionsList: React.FC = () => {
   const [selectedAction, setSelectedAction] = useState<'valider' | 'refuser' | 'commenter' | null>(null);
   const [processingRequisition, setProcessingRequisition] = useState<Requisition | null>(null);
   const [actionComment, setActionComment] = useState('');
+  const [paymentMode, setPaymentMode] = useState<'Cash' | 'Banque'>('Cash');
   const [submitting, setSubmitting] = useState(false);
   const [compilingPdf, setCompilingPdf] = useState(false);
 
@@ -144,6 +145,7 @@ const RequisitionsList: React.FC = () => {
               service_id: req.service_id,
               service_nom: req.service_nom || 'Inconnu',
               niveau: req.niveau,
+              mode_paiement: req.mode_paiement, // Ajout du mode de paiement
               pieces_jointes: Array.isArray(req.pieces) ? req.pieces.map((p: any) => p.nom_fichier) : [],
               pieces_jointes_data: req.pieces || [],
               nb_pieces: req.nb_pieces || 0,
@@ -342,6 +344,7 @@ const RequisitionsList: React.FC = () => {
     setProcessingRequisition(requisition);
     setSelectedAction(action);
     setActionComment('');
+    setPaymentMode('Cash');
     setActionDialogOpen(true);
   };
 
@@ -350,6 +353,7 @@ const RequisitionsList: React.FC = () => {
     setProcessingRequisition(null);
     setSelectedAction(null);
     setActionComment('');
+    setPaymentMode('Cash');
   };
 
   const handleSubmitAction = async () => {
@@ -389,7 +393,8 @@ const RequisitionsList: React.FC = () => {
         method = 'PUT';
         body = { 
           action: selectedAction, 
-          commentaire: actionComment || (user?.role?.toLowerCase() === 'comptable' ? '' : 'Validé') 
+          commentaire: actionComment || (user?.role?.toLowerCase() === 'comptable' ? '' : 'Validé'),
+          mode_paiement: (user?.role?.toLowerCase() === 'comptable' && selectedAction === 'valider') ? paymentMode : undefined
         };
       }
 
@@ -830,6 +835,7 @@ const RequisitionsList: React.FC = () => {
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Référence</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary', width: '30%' }}>Objet</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Montant</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Mode</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Service</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Initiateur</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Statut</TableCell>
@@ -907,6 +913,13 @@ const RequisitionsList: React.FC = () => {
                       </Typography>
                     </TableCell>
                     <TableCell>
+                      {req.mode_paiement ? (
+                        <Chip label={req.mode_paiement} color={req.mode_paiement === 'Cash' ? 'success' : 'primary'} size="small" />
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">-</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <Typography variant="body2" color="text.secondary">
                         {req.service_nom}
                       </Typography>
@@ -951,7 +964,10 @@ const RequisitionsList: React.FC = () => {
                       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                         {canUserAct(req) && (
                           <>
-                            <Tooltip title={user?.role?.toLowerCase() === 'emetteur' ? "Envoyer aux analystes" : "Valider"}>
+                            <Tooltip title={
+                              user?.role?.toLowerCase() === 'emetteur' ? "Envoyer aux analystes" : 
+                              user?.role?.toLowerCase() === 'comptable' ? "Confirmer le paiement" : "Valider"
+                            }>
                               <IconButton 
                                 size="small" 
                                 color="success"
@@ -960,7 +976,8 @@ const RequisitionsList: React.FC = () => {
                                   handleOpenActionDialog(req, 'valider');
                                 }}
                               >
-                                {user?.role?.toLowerCase() === 'emetteur' ? <Send fontSize="small" /> : <ThumbUp fontSize="small" />}
+                                {user?.role?.toLowerCase() === 'emetteur' ? <Send fontSize="small" /> : 
+                                 user?.role?.toLowerCase() === 'comptable' ? <AttachMoney fontSize="small" /> : <ThumbUp fontSize="small" />}
                               </IconButton>
                             </Tooltip>
                             <Tooltip title={user?.role?.toLowerCase() === 'emetteur' ? "Annuler la demande" : "Refuser"}>

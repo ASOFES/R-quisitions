@@ -30,6 +30,7 @@ export interface Requisition {
   service_id: number;
   service_nom: string;
   niveau?: string;  // Ajout de la propriété niveau
+  mode_paiement?: 'Cash' | 'Banque'; // Mode de paiement (Cash ou Banque)
   pieces_jointes: string[];
   pieces_jointes_data?: Array<{
     id: string;
