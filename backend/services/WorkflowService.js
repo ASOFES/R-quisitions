@@ -89,9 +89,34 @@ class WorkflowService {
                  nouveauStatut = 'validee';
              } else if (currentNiveau === 'comptable' || currentNiveau === 'paiement') {
                  nouveauStatut = 'payee';
+                 
                  // Enregistrer le mode de paiement si fourni
                  if (mode_paiement) {
                      await dbUtils.run('UPDATE requisitions SET mode_paiement = ? WHERE id = ?', [mode_paiement, requisitionId]);
+                 }
+
+                 // --- GESTION DES FONDS ET MOUVEMENTS ---
+                 let totalUsd = 0;
+                 let totalCdf = 0;
+
+                 if (requisition.montant_usd && requisition.montant_usd > 0) {
+                     totalUsd = requisition.montant_usd;
+                     await dbUtils.run('UPDATE fonds SET montant_disponible = montant_disponible - ?, updated_at = CURRENT_TIMESTAMP WHERE devise = ?', [totalUsd, 'USD']);
+                     await dbUtils.run('INSERT INTO mouvements_fonds (type_mouvement, montant, devise, description) VALUES (?, ?, ?, ?)', 
+                         ['sortie', totalUsd, 'USD', `Paiement Réquisition ${requisition.numero} (${requisition.objet})`]);
+                 }
+                 
+                 if (requisition.montant_cdf && requisition.montant_cdf > 0) {
+                     totalCdf = requisition.montant_cdf;
+                     await dbUtils.run('UPDATE fonds SET montant_disponible = montant_disponible - ?, updated_at = CURRENT_TIMESTAMP WHERE devise = ?', [totalCdf, 'CDF']);
+                     await dbUtils.run('INSERT INTO mouvements_fonds (type_mouvement, montant, devise, description) VALUES (?, ?, ?, ?)', 
+                         ['sortie', totalCdf, 'CDF', `Paiement Réquisition ${requisition.numero} (${requisition.objet})`]);
+                 }
+
+                 // Enregistrement unique dans la table paiements
+                 if (totalUsd > 0 || totalCdf > 0) {
+                     await dbUtils.run('INSERT INTO paiements (requisition_id, montant_usd, montant_cdf, commentaire, comptable_id) VALUES (?, ?, ?, ?, ?)',
+                         [requisitionId, totalUsd, totalCdf, commentaire || 'Paiement effectué', userId]);
                  }
              }
              
