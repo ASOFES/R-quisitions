@@ -281,9 +281,6 @@ const FundsPage: React.FC = () => {
     }
   };
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
   const parseAmount = (val: any) => {
     if (val === null || val === undefined) return 0;
     
@@ -479,11 +476,11 @@ const FundsPage: React.FC = () => {
             <Stack direction="row" spacing={4} sx={{ width: '100%', pt: 2, borderTop: '1px solid rgba(46, 125, 50, 0.2)', justifyContent: 'center' }}>
                <Box sx={{ textAlign: 'center' }}>
                  <Typography variant="caption" display="block" color="text.secondary">Entrées (filtre)</Typography>
-                 <Typography variant="body1" color="success.main" fontWeight="bold">+{formatCurrency(stats.cdfIn, 'CDF')}</Typography>
+                 <Typography variant="body1" color="success.main" fontWeight="bold">+{formatCurrency(isNaN(stats.cdfIn) ? 0 : stats.cdfIn, 'CDF')}</Typography>
                </Box>
                <Box sx={{ textAlign: 'center' }}>
                  <Typography variant="caption" display="block" color="text.secondary">Sorties (filtre)</Typography>
-                 <Typography variant="body1" color="error.main" fontWeight="bold">-{formatCurrency(stats.cdfOut, 'CDF')}</Typography>
+                 <Typography variant="body1" color="error.main" fontWeight="bold">-{formatCurrency(isNaN(stats.cdfOut) ? 0 : stats.cdfOut, 'CDF')}</Typography>
                </Box>
             </Stack>
           </Paper>
