@@ -149,12 +149,13 @@ const FundsPage: React.FC = () => {
 
   const stats = React.useMemo(() => {
     return filteredMouvements.reduce((acc, m) => {
+      const montant = Number(m.montant) || 0; // Double safety check
       if (m.devise === 'USD') {
-        if (m.type_mouvement === 'entree') acc.usdIn += m.montant;
-        else acc.usdOut += m.montant;
+        if (m.type_mouvement === 'entree') acc.usdIn += montant;
+        else acc.usdOut += montant;
       } else {
-        if (m.type_mouvement === 'entree') acc.cdfIn += m.montant;
-        else acc.cdfOut += m.montant;
+        if (m.type_mouvement === 'entree') acc.cdfIn += montant;
+        else acc.cdfOut += montant;
       }
       return acc;
     }, { usdIn: 0, usdOut: 0, cdfIn: 0, cdfOut: 0 });
@@ -278,6 +279,19 @@ const FundsPage: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+  const parseAmount = (val: any) => {
+    if (val === null || val === undefined) return 0;
+    const num = Number(val);
+    if (!isNaN(num)) return num;
+    // Try cleaning string (remove spaces, keep dot and minus)
+    const clean = String(val).replace(/[^0-9.-]/g, '');
+    const parsed = Number(clean);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
       const [fondsRes, mouvRes] = await Promise.all([
         api.get('/payments/fonds'),
         api.get('/payments/mouvements')
@@ -286,26 +300,16 @@ const FundsPage: React.FC = () => {
       console.log('Funds API Response:', fondsRes.data);
       console.log('Movements API Response:', mouvRes.data);
 
-      const parseAmount = (val: any) => {
-          if (val === null || val === undefined) return 0;
-          const num = Number(val);
-          if (!isNaN(num)) return num;
-          // Try cleaning string (remove spaces, keep dot and minus)
-          const clean = String(val).replace(/[^0-9.-]/g, '');
-          const parsed = Number(clean);
-          return isNaN(parsed) ? 0 : parsed;
-      };
-
       // Mapping et conversion des types pour éviter les problèmes de strings/NaN
-      setFonds(fondsRes.data.map((f: any) => ({
+      setFonds(Array.isArray(fondsRes.data) ? fondsRes.data.map((f: any) => ({
         ...f,
-        solde: parseAmount(f.montant_disponible || f.solde)
-      })));
+        solde: parseAmount(f.montant_disponible !== undefined ? f.montant_disponible : f.solde)
+      })) : []);
 
-      setMouvements(mouvRes.data.map((m: any) => ({
+      setMouvements(Array.isArray(mouvRes.data) ? mouvRes.data.map((m: any) => ({
         ...m,
         montant: parseAmount(m.montant)
-      })));
+      })) : []);
 
       setError(null);
     } catch (err) {
