@@ -37,6 +37,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import RequisitionService from '../services/RequisitionService';
 import { API_BASE_URL } from '../config';
+import api from '../services/api';
 
 const SimpleDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -95,37 +96,21 @@ const SimpleDashboard: React.FC = () => {
           allRequisitions = requisitionService.getAllRequisitions();
         } else {
           try {
-            const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            });
+            const response = await api.get('/requisitions');
+            const data = response.data;
 
-            if (response.ok) {
-        const text = await response.text();
-        try {
-          const data = JSON.parse(text);
-          if (Array.isArray(data)) {
-            allRequisitions = data.map((req: any) => {
-              if (req.statut === 'valide') req.statut = 'validee';
-              if (req.statut === 'refuse') req.statut = 'refusee';
-              return req;
-            });
-          } else {
-            console.error('Format de données inattendu:', data);
-            allRequisitions = [];
-          }
-        } catch (e) {
-          console.error('Erreur parsing JSON:', e, 'Réponse brute:', text);
-          allRequisitions = [];
-        }
-      } else {
-              const requisitionService = RequisitionService.getInstance();
-              allRequisitions = requisitionService.getAllRequisitions();
+            if (Array.isArray(data)) {
+              allRequisitions = data.map((req: any) => {
+                if (req.statut === 'valide') req.statut = 'validee';
+                if (req.statut === 'refuse') req.statut = 'refusee';
+                return req;
+              });
+            } else {
+              console.error('Format de données inattendu:', data);
+              allRequisitions = [];
             }
           } catch (e) {
-            console.error('Erreur fetch:', e);
+            console.error('Erreur chargement dashboard:', e);
             const requisitionService = RequisitionService.getInstance();
             allRequisitions = requisitionService.getAllRequisitions();
           }

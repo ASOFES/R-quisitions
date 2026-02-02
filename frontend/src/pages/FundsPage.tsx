@@ -283,15 +283,28 @@ const FundsPage: React.FC = () => {
         api.get('/payments/mouvements')
       ]);
       
+      console.log('Funds API Response:', fondsRes.data);
+      console.log('Movements API Response:', mouvRes.data);
+
+      const parseAmount = (val: any) => {
+          if (val === null || val === undefined) return 0;
+          const num = Number(val);
+          if (!isNaN(num)) return num;
+          // Try cleaning string (remove spaces, keep dot and minus)
+          const clean = String(val).replace(/[^0-9.-]/g, '');
+          const parsed = Number(clean);
+          return isNaN(parsed) ? 0 : parsed;
+      };
+
       // Mapping et conversion des types pour éviter les problèmes de strings/NaN
       setFonds(fondsRes.data.map((f: any) => ({
         ...f,
-        solde: Number(f.montant_disponible || f.solde || 0)
+        solde: parseAmount(f.montant_disponible || f.solde)
       })));
 
       setMouvements(mouvRes.data.map((m: any) => ({
         ...m,
-        montant: Number(m.montant)
+        montant: parseAmount(m.montant)
       })));
 
       setError(null);
