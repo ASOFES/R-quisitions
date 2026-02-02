@@ -205,6 +205,70 @@ class PdfService {
             y = drawWrappedText(req.commentaire_initial || 'Aucune description fournie.', margin, y, 11, font, contentWidth);
             y -= 20;
 
+            // --- REQUISITION ITEMS (LIGNES) ---
+            const items = await dbUtils.all(`
+                SELECT * FROM lignes_requisition WHERE requisition_id = ? ORDER BY id ASC
+            `, [req.id]);
+
+            if (items.length > 0) {
+                y = checkPageBreak(y, 100);
+
+                page.drawText('DÉTAILS DES ARTICLES', { x: margin, y, size: 12, font: boldFont, color: colors.primary });
+                y -= 5;
+                page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: colors.border });
+                y -= 20;
+
+                // Table Header
+                page.drawRectangle({ x: margin, y: y - 20, width: contentWidth, height: 20, color: rgb(0.9, 0.9, 0.9) });
+                
+                const colDesc = margin + 5;
+                const colQty = margin + 250;
+                const colPrice = margin + 320;
+                const colTotal = margin + 400;
+
+                page.drawText('DESCRIPTION', { x: colDesc, y: y - 14, size: 9, font: boldFont });
+                page.drawText('QUANTITÉ', { x: colQty, y: y - 14, size: 9, font: boldFont });
+                page.drawText('P. UNITAIRE', { x: colPrice, y: y - 14, size: 9, font: boldFont });
+                page.drawText('TOTAL', { x: colTotal, y: y - 14, size: 9, font: boldFont });
+                
+                y -= 30;
+
+                for (const item of items) {
+                    y = checkPageBreak(y, 30);
+
+                    // Description wrap
+                    const descWidth = colQty - colDesc - 10;
+                    
+                    // Simple wrap logic for description
+                    const descWords = safeText(item.description).split(' ');
+                    let descLine = '';
+                    let descY = y;
+                    for(const w of descWords) {
+                        if (font.widthOfTextAtSize(descLine + w, 9) > descWidth) {
+                            page.drawText(descLine, { x: colDesc, y: descY, size: 9, font, color: colors.text });
+                            descY -= 11;
+                            descLine = '';
+                        }
+                        descLine += w + ' ';
+                    }
+                    page.drawText(descLine, { x: colDesc, y: descY, size: 9, font, color: colors.text });
+                    
+                    // Numeric values
+                    page.drawText(String(item.quantite), { x: colQty, y, size: 9, font, color: colors.text });
+                    page.drawText(String(item.prix_unitaire), { x: colPrice, y, size: 9, font, color: colors.text });
+                    page.drawText(String(item.prix_total), { x: colTotal, y, size: 9, font, color: colors.text });
+
+                    // Update main Y based on description height
+                    y = Math.min(y, descY);
+                    y -= 10; // Row spacing
+                    
+                    // Light separator line
+                    page.drawLine({ start: { x: margin, y: y + 5 }, end: { x: width - margin, y: y + 5 }, thickness: 0.5, color: colors.border });
+                    y -= 10;
+                }
+                y -= 20;
+            }
+
             // --- VALIDATION HISTORY (TABLE) ---
             const actions = await dbUtils.all(`
                 SELECT ra.*, u.nom_complet as utilisateur_nom, u.role as utilisateur_role
