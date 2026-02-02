@@ -441,7 +441,7 @@ router.get('/:id', authenticateToken, checkRequisitionAccess, async (req, res) =
 router.put('/:id/action', authenticateToken, checkRequisitionAccess, async (req, res) => {
   try {
     const { id } = req.params;
-    const { action, commentaire } = req.body;
+    const { action, commentaire, mode_paiement } = req.body;
     const user = req.user;
     const userRole = user.role ? user.role.toLowerCase() : '';
 
