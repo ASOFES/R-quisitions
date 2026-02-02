@@ -153,7 +153,10 @@ const FundsPage: React.FC = () => {
     return filteredMouvements.reduce((acc, m) => {
       // Ensure we have a valid number
       let montant = Number(m.montant);
-      if (isNaN(montant)) montant = 0;
+      if (isNaN(montant)) {
+         console.warn('Stats: Montant invalide détecté, ignoré:', m);
+         montant = 0;
+      }
       
       if (m.devise === 'USD') {
         if (m.type_mouvement === 'entree') acc.usdIn += montant;
@@ -281,30 +284,49 @@ const FundsPage: React.FC = () => {
     }
   };
 
+  // Fonction robuste pour nettoyer et convertir les montants
   const parseAmount = (val: any) => {
     if (val === null || val === undefined) return 0;
     
-    // First try standard conversion
-    const num = Number(val);
-    if (!isNaN(num)) return num;
+    // Si c'est déjà un nombre valide, on le retourne
+    if (typeof val === 'number' && !isNaN(val)) return val;
 
-    // Handle strings with potential formatting
     let strVal = String(val);
     
-    // Replace comma with dot for decimal separator if likely European/French format
-    if (strVal.includes(',') && !strVal.includes('.')) {
-      strVal = strVal.replace(/,/g, '.');
-    } else if (strVal.includes(',') && strVal.includes('.')) {
-      // If both, assume comma is thousands separator (remove it)
-      strVal = strVal.replace(/,/g, '');
-    }
+    // 1. Nettoyage agressif des espaces (insécables, etc.) et symboles
+    strVal = strVal.replace(/[\s\u00A0\u202F\u2007\u2060]+/g, '');
+    strVal = strVal.replace(/[$€£FC]/g, ''); // Enlever les symboles monétaires
 
-    // Remove all non-numeric characters except dot and minus
-    // Note: This removes spaces which might be thousand separators
+    // 2. Gestion des séparateurs (virgule vs point)
+    const lastComma = strVal.lastIndexOf(',');
+    const lastDot = strVal.lastIndexOf('.');
+
+    if (lastComma !== -1 && lastDot !== -1) {
+        // Présence des deux séparateurs
+        if (lastComma > lastDot) {
+            // Ex: 1.000,50 (Virgule est décimale)
+            strVal = strVal.replace(/\./g, '').replace(',', '.');
+        } else {
+            // Ex: 1,000.50 (Point est décimal)
+            strVal = strVal.replace(/,/g, '');
+        }
+    } else if (lastComma !== -1) {
+        // Uniquement virgule -> Remplacement par point pour standard JS
+        strVal = strVal.replace(',', '.');
+    }
+    
+    // 3. Ne garder que chiffres, point, et moins
     const clean = strVal.replace(/[^0-9.-]/g, '');
     
     const parsed = Number(clean);
-    return isNaN(parsed) ? 0 : parsed;
+    
+    // Log pour débogage si NaN persiste
+    if (isNaN(parsed)) {
+       console.warn(`parseAmount ECHEC pour valeur: "${val}" (nettoyé: "${clean}")`);
+       return 0;
+    }
+
+    return parsed;
   };
 
   const fetchData = async () => {
@@ -380,10 +402,17 @@ const FundsPage: React.FC = () => {
     if (amount === undefined || amount === null || isNaN(amount)) {
       return `0,00 ${currency === 'USD' ? '$US' : 'FC'}`;
     }
-    return new Intl.NumberFormat('fr-CD', { 
-      style: 'currency', 
-      currency: currency 
-    }).format(amount);
+    try {
+      return new Intl.NumberFormat('fr-FR', { 
+        style: 'currency', 
+        currency: currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(amount);
+    } catch (e) {
+      console.error('FormatCurrency Error:', e);
+      return `${amount} ${currency}`;
+    }
   };
 
   const formatDate = (dateString: string) => {
