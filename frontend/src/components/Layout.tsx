@@ -34,6 +34,7 @@ import {
   AccountBalance as AccountBalanceIcon,
   Add as AddIcon,
   Place as PlaceIcon,
+  FolderOpen as FolderOpenIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { API_BASE_URL } from '../config';
@@ -104,6 +105,7 @@ const Layout: React.FC = () => {
     { text: 'Services', icon: <BusinessIcon />, path: '/services', roles: ['admin'] },
     { text: 'Zones', icon: <MapIcon />, path: '/zones', roles: ['admin'] },
     { text: 'Gestion des fonds', icon: <PaymentIcon />, path: '/payments', roles: ['comptable', 'admin', 'gm'] },
+    { text: 'Compilations', icon: <FolderOpenIcon />, path: '/compilations', roles: ['compilateur', 'admin', 'comptable', 'gm'] },
     { text: 'Trésorerie', icon: <AccountBalanceIcon />, path: '/funds', roles: ['comptable', 'admin', 'gm'] },
     { text: 'Paramètres', icon: <SettingsIcon />, path: '/settings', roles: ['admin'] },
   ];

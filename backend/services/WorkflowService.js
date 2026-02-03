@@ -6,9 +6,10 @@ const WORKFLOW_STEPS = {
   'challenger': { valider: 'validateur', modifier: 'analyste', refuser: 'emetteur' },
   'validateur': { valider: 'gm', modifier: 'challenger', refuser: 'emetteur' },
   'pm': { valider: 'gm', modifier: 'challenger', refuser: 'emetteur' },
-  'gm': { valider: 'paiement', modifier: 'validateur', refuser: 'emetteur' },
-  'comptable': { valider: 'termine', modifier: 'gm', refuser: 'gm' },
-  'paiement': { valider: 'termine', modifier: 'gm', refuser: 'gm' }
+  'gm': { valider: 'compilation', modifier: 'validateur', refuser: 'emetteur' },
+  'compilation': { valider: 'paiement', modifier: 'gm', refuser: 'gm' },
+  'comptable': { valider: 'termine', modifier: 'compilation', refuser: 'gm' },
+  'paiement': { valider: 'termine', modifier: 'compilation', refuser: 'gm' }
 };
 
 class WorkflowService {

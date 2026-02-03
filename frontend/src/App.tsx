@@ -27,6 +27,7 @@ import FinancialPage from './pages/FinancialPage';
 import PaymentsPage from './pages/PaymentsPage';
 import FundsPage from './pages/FundsPage';
 import SettingsPage from './pages/SettingsPage';
+import CompilationsPage from './pages/CompilationsPage';
 import { useAuth } from './context/AuthContext';
 
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -121,6 +122,14 @@ function AppRoutes() {
           element={
             <RoleBasedRoute allowedRoles={['comptable', 'admin', 'gm']}>
               <PaymentsPage />
+            </RoleBasedRoute>
+          }
+        />
+        <Route
+          path="/compilations"
+          element={
+            <RoleBasedRoute allowedRoles={['compilateur', 'admin', 'comptable', 'gm']}>
+              <CompilationsPage />
             </RoleBasedRoute>
           }
         />

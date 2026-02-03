@@ -43,7 +43,7 @@ export interface User {
   username: string;
   nom_complet: string;
   email: string;
-  role: 'admin' | 'emetteur' | 'analyste' | 'challenger' | 'validateur' | 'comptable' | 'gm' | 'pm';
+  role: 'admin' | 'emetteur' | 'analyste' | 'challenger' | 'validateur' | 'comptable' | 'gm' | 'pm' | 'compilateur';
   service_id?: number;
   service_code?: string;
   service_nom?: string;
@@ -90,7 +90,7 @@ export interface Requisition {
   commentaire_initial?: string;
   emetteur_id: number;
   service_id: number;
-  niveau: 'emetteur' | 'analyste' | 'challenger' | 'validateur' | 'gm' | 'paiement' | 'justificatif' | 'termine';
+  niveau: 'emetteur' | 'analyste' | 'challenger' | 'validateur' | 'gm' | 'compilation' | 'paiement' | 'justificatif' | 'termine';
   statut: 'en_cours' | 'valide' | 'refuse' | 'termine' | 'a_corriger' | 'validee' | 'refusee' | 'payee' | 'annulee';
   created_at: string;
   updated_at: string;
@@ -149,6 +149,18 @@ export interface MouvementFonds {
   devise: 'USD' | 'CDF';
   description?: string;
   created_at: string;
+}
+
+export interface Bordereau {
+  id: number;
+  numero: string;
+  date_creation: string;
+  statut: string;
+  createur_id: number;
+  createur_nom?: string;
+  nb_requisitions?: number;
+  total_usd?: number;
+  total_cdf?: number;
 }
 
 // API Authentification
@@ -287,6 +299,22 @@ export const requisitionsAPI = {
         'Content-Type': 'multipart/form-data',
       },
     });
+    return response.data;
+  },
+
+  // API Compilations
+  getRequisitionsToCompile: async () => {
+    const response = await api.get('/compilations/a-compiler');
+    return response.data;
+  },
+
+  createBordereau: async (requisitionIds: number[]) => {
+    const response = await api.post('/compilations', { requisition_ids: requisitionIds });
+    return response.data;
+  },
+
+  getBordereaux: async () => {
+    const response = await api.get('/compilations');
     return response.data;
   },
 };
