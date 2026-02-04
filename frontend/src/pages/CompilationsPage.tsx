@@ -213,6 +213,17 @@ const CompilationsPage: React.FC = () => {
             >
               Générer Bordereau ({selectedIds.length})
             </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={() => {
+                setSelectedIds(requisitions.map((r) => r.id));
+                setConfirmOpen(true);
+              }}
+              sx={{ ml: 2 }}
+            >
+              Clôturer la file (Tout)
+            </Button>
           </Box>
 
           <TableContainer>

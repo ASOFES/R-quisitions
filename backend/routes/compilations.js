@@ -85,7 +85,7 @@ router.get('/a-aligner', authenticateToken, requireRole(['analyste', 'admin']), 
             LEFT JOIN users u ON b.createur_id = u.id
             JOIN requisitions r_check ON r_check.bordereau_id = b.id
             WHERE r_check.niveau = 'validation_bordereau'
-            ORDER BY b.date_creation DESC
+            ORDER BY b.date_creation ASC
         `);
         res.json(bordereaux);
     } catch (error) {
@@ -146,8 +146,7 @@ router.get('/', authenticateToken, requireRole(['compilateur', 'admin', 'comptab
                    (SELECT SUM(COALESCE(r.montant_cdf, 0)) FROM requisitions r WHERE r.bordereau_id = b.id) as total_cdf
             FROM bordereaux b
             LEFT JOIN users u ON b.createur_id = u.id
-            ORDER BY b.date_creation DESC
-            LIMIT 50
+            ORDER BY b.date_creation ASC
         `);
         res.json(bordereaux);
     } catch (error) {
