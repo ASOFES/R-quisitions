@@ -662,11 +662,11 @@ const RequisitionsList: React.FC = () => {
               visibility: visible;
             }
             .printable-content {
-              position: fixed;
+              position: absolute;
               left: 0;
               top: 0;
-              width: 100vw;
-              height: 100vh;
+              width: 100%;
+              height: auto;
               margin: 0;
               padding: 20px;
               background: white;
@@ -684,6 +684,10 @@ const RequisitionsList: React.FC = () => {
             }
             .screen-only {
               display: none !important;
+            }
+            /* Hide URL printing in some browsers */
+            a[href]:after {
+              content: none !important;
             }
           }
           /* Screen styles */
