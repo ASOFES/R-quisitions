@@ -317,6 +317,16 @@ export const requisitionsAPI = {
     const response = await api.get('/compilations');
     return response.data;
   },
+
+  getBordereauxToAlign: async () => {
+    const response = await api.get('/compilations/a-aligner');
+    return response.data;
+  },
+
+  alignBordereau: async (id: number, modePaiement?: string) => {
+    const response = await api.post(`/compilations/${id}/aligner`, { mode_paiement: modePaiement });
+    return response.data;
+  },
 };
 
 // API Paiements
@@ -341,10 +351,11 @@ export const paymentsAPI = {
     return response.data;
   },
   
-  effectuer: async (requisitionIds: number[], commentaire: string) => {
+  effectuer: async (requisitionIds: number[], commentaire: string, modePaiement?: string) => {
     const response = await api.post('/payments/effectuer', { 
       requisition_ids: requisitionIds, 
-      commentaire 
+      commentaire,
+      mode_paiement: modePaiement
     });
     return response.data;
   },

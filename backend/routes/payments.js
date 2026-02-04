@@ -85,7 +85,7 @@ router.get('/a-payer', authenticateToken, requireRole(['comptable', 'admin', 'gm
       FROM requisitions r
       JOIN users u ON r.emetteur_id = u.id
       JOIN services s ON r.service_id = s.id
-      WHERE r.niveau = 'paiement' AND (r.statut = 'en_cours' OR r.statut = 'valide')
+      WHERE r.niveau = 'paiement' AND (r.statut = 'en_cours' OR r.statut = 'valide' OR r.statut = 'validee')
       ORDER BY r.created_at ASC
     `);
     res.json(requisitions);
@@ -98,11 +98,23 @@ router.get('/a-payer', authenticateToken, requireRole(['comptable', 'admin', 'gm
 // Effectuer un paiement
 router.post('/effectuer', authenticateToken, requireRole(['comptable', 'admin']), async (req, res) => {
   try {
-    const { requisition_ids, commentaire } = req.body;
+    const { requisition_ids, commentaire, mode_paiement } = req.body;
     const user = req.user;
 
     if (!requisition_ids || !Array.isArray(requisition_ids) || requisition_ids.length === 0) {
       return res.status(400).json({ error: 'Réquisitions à payer sont obligatoires' });
+    }
+
+    // Validation du mode de paiement (optionnel mais recommandé)
+    let validMode = null;
+    if (mode_paiement) {
+        if (['Cash', 'Banque'].includes(mode_paiement)) {
+            validMode = mode_paiement;
+        } else {
+            // Si le mode est envoyé mais invalide, on peut rejeter ou ignorer. 
+            // Pour l'instant on rejette pour être strict.
+            return res.status(400).json({ error: 'Mode de paiement invalide (Cash ou Banque)' });
+        }
     }
 
     const results = [];
@@ -112,8 +124,8 @@ router.post('/effectuer', authenticateToken, requireRole(['comptable', 'admin'])
     // Calculer les totaux et vérifier les fonds
     for (const reqId of requisition_ids) {
       const requisition = await dbUtils.get(
-        'SELECT * FROM requisitions WHERE id = ? AND niveau = ? AND (statut = ? OR statut = ?)',
-        [reqId, 'paiement', 'en_cours', 'valide']
+        'SELECT * FROM requisitions WHERE id = ? AND niveau = ? AND (statut = ? OR statut = ? OR statut = ?)',
+        [reqId, 'paiement', 'en_cours', 'valide', 'validee']
       );
 
       if (!requisition) {
@@ -154,10 +166,18 @@ router.post('/effectuer', authenticateToken, requireRole(['comptable', 'admin'])
       );
 
       // Mettre à jour la réquisition
-      await dbUtils.run(
-        'UPDATE requisitions SET niveau = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        ['justificatif', reqId]
-      );
+      let updateQuery = 'UPDATE requisitions SET niveau = ?, updated_at = CURRENT_TIMESTAMP';
+      let updateParams = ['justificatif'];
+
+      if (validMode) {
+          updateQuery += ', mode_paiement = ?';
+          updateParams.push(validMode);
+      }
+      
+      updateQuery += ' WHERE id = ?';
+      updateParams.push(reqId);
+
+      await dbUtils.run(updateQuery, updateParams);
 
       // Enregistrer l'action
       await dbUtils.run(

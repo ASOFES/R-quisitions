@@ -26,7 +26,12 @@ import {
   Tabs,
   Tab,
   Stack,
-  TablePagination
+  TablePagination,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio
 } from '@mui/material';
 import { 
   ArrowBack, 
@@ -97,6 +102,7 @@ const PaymentsPage: React.FC = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [paymentComment, setPaymentComment] = useState('');
+  const [paymentMode, setPaymentMode] = useState('Cash');
   
   // Filters for "À payer"
   const [payStartDate, setPayStartDate] = useState('');
@@ -382,7 +388,7 @@ const PaymentsPage: React.FC = () => {
     const dateInfo = [[`Généré le : ${new Date().toLocaleDateString('fr-FR')}`]];
     const periodInfo = (startDate || endDate) ? [[`Période : ${startDate || 'Début'} au ${endDate || 'Fin'}`]] : [];
     
-    const headers = [["Date Paiement", "Date Demande", "Numéro Réquisition", "Objet", "Initiateur", "Montant USD", "Montant CDF", "Payé par", "Commentaire"]];
+    const headers = [["Date Paiement", "Date Demande", "Numéro Réquisition", "Objet", "Initiateur", "Montant USD", "Montant CDF", "Payé par", "Mode", "Commentaire"]];
     
     const data = filteredHistory.map(p => [
       formatDate(p.date_paiement),
@@ -393,6 +399,7 @@ const PaymentsPage: React.FC = () => {
       p.montant_usd || 0,
       p.montant_cdf || 0,
       p.comptable_nom,
+      (p as any).mode_paiement || '-',
       p.commentaire
     ]);
 
@@ -424,7 +431,8 @@ const PaymentsPage: React.FC = () => {
       { header: "Initiateur", dataKey: "beneficiaire" },
       { header: "Montant USD", dataKey: "usd" },
       { header: "Montant CDF", dataKey: "cdf" },
-      { header: "Payé par", dataKey: "paye_par" }
+      { header: "Payé par", dataKey: "paye_par" },
+      { header: "Mode", dataKey: "mode" }
     ];
 
     // Formatage simple pour le PDF (évite les caractères invisibles de Intl.NumberFormat qui cassent le PDF)
@@ -443,7 +451,8 @@ const PaymentsPage: React.FC = () => {
       beneficiaire: p.emetteur_nom,
       usd: formatMoneyPDF(p.montant_usd, 'USD'),
       cdf: formatMoneyPDF(p.montant_cdf, 'CDF'),
-      paye_par: p.comptable_nom
+      paye_par: p.comptable_nom,
+      mode: (p as any).mode_paiement || '-'
     }));
 
     autoTable(doc, {
@@ -481,7 +490,8 @@ const PaymentsPage: React.FC = () => {
       setProcessing(true);
       await api.post('/payments/effectuer', {
         requisition_ids: selectedIds,
-        commentaire: paymentComment || 'Paiement effectué'
+        commentaire: paymentComment || 'Paiement effectué',
+        mode_paiement: paymentMode
       });
       
       handleCloseDialog();
@@ -843,13 +853,14 @@ const PaymentsPage: React.FC = () => {
                     <TableCell>Initiateur</TableCell>
                     <TableCell align="right">Montant Payé</TableCell>
                     <TableCell>Payé par</TableCell>
+                    <TableCell>Mode</TableCell>
                     <TableCell>Commentaire</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {filteredHistory.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} align="center">
+                      <TableCell colSpan={7} align="center">
                         {history.length === 0 ? "Aucun historique de paiement" : "Aucun résultat pour ces filtres"}
                       </TableCell>
                     </TableRow>
@@ -881,6 +892,16 @@ const PaymentsPage: React.FC = () => {
                           )}
                         </TableCell>
                         <TableCell>{payment.comptable_nom}</TableCell>
+                        <TableCell>
+                            {(payment as any).mode_paiement ? (
+                                <Chip 
+                                    label={(payment as any).mode_paiement} 
+                                    size="small" 
+                                    color={(payment as any).mode_paiement === 'Cash' ? 'success' : 'primary'} 
+                                    variant="outlined"
+                                />
+                            ) : '-'}
+                        </TableCell>
                         <TableCell>{payment.commentaire || '-'}</TableCell>
                       </TableRow>
                     ))
@@ -924,6 +945,20 @@ const PaymentsPage: React.FC = () => {
                  </Grid>
                </Grid>
             </Box>
+
+            <FormControl component="fieldset" sx={{ mb: 2, width: '100%' }}>
+              <FormLabel component="legend">Mode de Paiement</FormLabel>
+              <RadioGroup
+                row
+                aria-label="mode-paiement"
+                name="mode-paiement"
+                value={paymentMode}
+                onChange={(e) => setPaymentMode(e.target.value)}
+              >
+                <FormControlLabel value="Cash" control={<Radio />} label="Cash" />
+                <FormControlLabel value="Banque" control={<Radio />} label="Banque" />
+              </RadioGroup>
+            </FormControl>
 
             <TextField
               label="Note / Commentaire (Optionnel)"

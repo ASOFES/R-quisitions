@@ -522,7 +522,7 @@ router.put('/:id/action', authenticateToken, checkRequisitionAccess, async (req,
 router.put('/:id', authenticateToken, upload.array('pieces', 5), async (req, res) => {
   try {
     const { id } = req.params;
-    const { objet, montant_usd, montant_cdf, commentaire_initial, service_id, resubmit, site_id } = req.body;
+    const { objet, montant_usd, montant_cdf, commentaire_initial, service_id, resubmit, site_id, items } = req.body;
     const user = req.user;
 
     // Vérifier droits
@@ -533,18 +533,62 @@ router.put('/:id', authenticateToken, upload.array('pieces', 5), async (req, res
       return res.status(403).json({ error: 'Non autorisé' });
     }
 
-    if (requisition.statut !== 'brouillon' && requisition.statut !== 'a_corriger') {
+    // Allow admin to edit regardless of status (careful!), or if resubmit is true (correction)
+    const canEdit = 
+        requisition.statut === 'brouillon' || 
+        requisition.statut === 'a_corriger' || 
+        (requisition.statut === 'en_cours' && requisition.niveau === 'emetteur') ||
+        user.role === 'admin'; // Admin override
+
+    if (!canEdit) {
       return res.status(400).json({ error: 'Modification impossible à ce stade' });
+    }
+
+    let parsedItems = [];
+    if (items) {
+        try {
+            parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+        } catch (e) {
+            console.error('Error parsing items:', e);
+        }
+    }
+
+    // Recalculate totals if items are present
+    let finalMontantUsd = montant_usd;
+    let finalMontantCdf = montant_cdf;
+
+    if (parsedItems.length > 0) {
+        finalMontantUsd = 0;
+        finalMontantCdf = 0;
+        for (const item of parsedItems) {
+            const qty = parseFloat(item.quantite) || 1;
+            const price = parseFloat(item.prix_unitaire) || 0;
+            const total = qty * price;
+            
+            if (item.devise === 'CDF') {
+                finalMontantCdf += total;
+            } else {
+                finalMontantUsd += total;
+            }
+        }
     }
 
     let updates = [];
     let params = [];
 
     if (objet) { updates.push('objet = ?'); params.push(objet); }
-    if (montant_usd !== undefined) { updates.push('montant_usd = ?'); params.push(montant_usd || null); }
-    if (montant_cdf !== undefined) { updates.push('montant_cdf = ?'); params.push(montant_cdf || null); }
+    // Update amounts (use computed values if items exist, otherwise use provided or keep existing)
+    if (parsedItems.length > 0) {
+         updates.push('montant_usd = ?'); params.push(finalMontantUsd);
+         updates.push('montant_cdf = ?'); params.push(finalMontantCdf);
+    } else {
+         if (montant_usd !== undefined) { updates.push('montant_usd = ?'); params.push(montant_usd || null); }
+         if (montant_cdf !== undefined) { updates.push('montant_cdf = ?'); params.push(montant_cdf || null); }
+    }
+
     if (commentaire_initial) { updates.push('commentaire_initial = ?'); params.push(commentaire_initial); }
     if (service_id) { updates.push('service_id = ?'); params.push(service_id); }
+    if (site_id) { updates.push('site_id = ?'); params.push(site_id); }
     
     // Si resoumission
     if (resubmit === 'true' || resubmit === true) {
@@ -552,11 +596,27 @@ router.put('/:id', authenticateToken, upload.array('pieces', 5), async (req, res
         updates.push('niveau = ?'); params.push('emetteur');
     }
 
-    if (updates.length === 0 && (!req.files || req.files.length === 0)) return res.json({ message: 'Aucune modification' });
-
     if (updates.length > 0) {
         params.push(id);
         await dbUtils.run(`UPDATE requisitions SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, params);
+    }
+
+    // Update items if provided
+    if (parsedItems.length > 0) {
+        // Delete existing items
+        await dbUtils.run('DELETE FROM lignes_requisition WHERE requisition_id = ?', [id]);
+        
+        // Insert new items
+        for (const item of parsedItems) {
+             const qty = parseFloat(item.quantite) || 1;
+             const price = parseFloat(item.prix_unitaire) || 0;
+             const total = qty * price;
+             
+             await dbUtils.run(
+                 'INSERT INTO lignes_requisition (requisition_id, description, quantite, prix_unitaire, prix_total, site_id) VALUES (?, ?, ?, ?, ?, ?)',
+                 [id, item.description, qty, price, total, item.site_id || site_id || null]
+             );
+        }
     }
     
     // Ajouter les nouvelles pièces jointes si présentes

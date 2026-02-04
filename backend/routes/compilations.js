@@ -45,12 +45,12 @@ router.post('/', authenticateToken, requireRole(['compilateur', 'admin']), async
         );
 
         // 2. Mettre à jour les réquisitions
-        // On passe aussi le niveau à 'paiement' car elles sont maintenant compilées et prêtes pour le comptable
+        // On passe le niveau à 'validation_bordereau' (pour l'analyste)
         const placeholders = requisition_ids.map(() => '?').join(',');
         
         await dbUtils.run(
             `UPDATE requisitions 
-             SET bordereau_id = ?, niveau = 'paiement', updated_at = CURRENT_TIMESTAMP 
+             SET bordereau_id = ?, niveau = 'validation_bordereau', updated_at = CURRENT_TIMESTAMP 
              WHERE id IN (${placeholders})`,
             [bordereau.id, ...requisition_ids]
         );
@@ -60,7 +60,7 @@ router.post('/', authenticateToken, requireRole(['compilateur', 'admin']), async
             await dbUtils.run(
                 `INSERT INTO requisition_actions (requisition_id, utilisateur_id, action, niveau_avant, niveau_apres, commentaire)
                  VALUES (?, ?, ?, ?, ?, ?)`,
-                [reqId, user.id, 'valider', 'compilation', 'paiement', `Inclus dans le bordereau ${numero}`]
+                [reqId, user.id, 'valider', 'compilation', 'validation_bordereau', `Inclus dans le bordereau ${numero}`]
             );
         }
 
@@ -72,8 +72,72 @@ router.post('/', authenticateToken, requireRole(['compilateur', 'admin']), async
     }
 });
 
-// Obtenir la liste des bordereaux
-router.get('/', authenticateToken, requireRole(['compilateur', 'admin', 'comptable', 'gm']), async (req, res) => {
+// Obtenir la liste des bordereaux à aligner (Analyste)
+router.get('/a-aligner', authenticateToken, requireRole(['analyste', 'admin']), async (req, res) => {
+    try {
+        // On cherche les bordereaux dont les réquisitions sont au niveau 'validation_bordereau'
+        const bordereaux = await dbUtils.all(`
+            SELECT DISTINCT b.*, u.nom_complet as createur_nom, 
+                   (SELECT COUNT(*) FROM requisitions r WHERE r.bordereau_id = b.id) as nb_requisitions,
+                   (SELECT SUM(COALESCE(r.montant_usd, 0)) FROM requisitions r WHERE r.bordereau_id = b.id) as total_usd,
+                   (SELECT SUM(COALESCE(r.montant_cdf, 0)) FROM requisitions r WHERE r.bordereau_id = b.id) as total_cdf
+            FROM bordereaux b
+            LEFT JOIN users u ON b.createur_id = u.id
+            JOIN requisitions r_check ON r_check.bordereau_id = b.id
+            WHERE r_check.niveau = 'validation_bordereau'
+            ORDER BY b.date_creation DESC
+        `);
+        res.json(bordereaux);
+    } catch (error) {
+        console.error('Erreur récupération à aligner:', error);
+        res.status(500).json({ error: 'Erreur serveur' });
+    }
+});
+
+// Aligner un bordereau (Analyste -> Comptable)
+router.post('/:id/aligner', authenticateToken, requireRole(['analyste', 'admin']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { mode_paiement } = req.body; // Accept mode_paiement
+        const user = req.user;
+
+        const bordereau = await dbUtils.get('SELECT * FROM bordereaux WHERE id = ?', [id]);
+        if (!bordereau) return res.status(404).json({ error: 'Bordereau non trouvé' });
+
+        // Update requisitions
+        let updateQuery = "UPDATE requisitions SET niveau = 'paiement', updated_at = CURRENT_TIMESTAMP";
+        let params = [];
+        
+        if (mode_paiement) {
+            updateQuery += ", mode_paiement = ?";
+            params.push(mode_paiement);
+        }
+        
+        updateQuery += " WHERE bordereau_id = ? AND niveau = 'validation_bordereau'";
+        params.push(id);
+
+        await dbUtils.run(updateQuery, params);
+
+        // Enregistrer l'historique
+        const requisitions = await dbUtils.all('SELECT id FROM requisitions WHERE bordereau_id = ?', [id]);
+        for (const req of requisitions) {
+             await dbUtils.run(
+                `INSERT INTO requisition_actions (requisition_id, utilisateur_id, action, niveau_avant, niveau_apres, commentaire)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [req.id, user.id, 'valider', 'validation_bordereau', 'paiement', `Bordereau aligné pour paiement${mode_paiement ? ' (' + mode_paiement + ')' : ''}`]
+            );
+        }
+
+        res.json({ message: 'Bordereau aligné avec succès' });
+
+    } catch (error) {
+        console.error('Erreur alignement bordereau:', error);
+        res.status(500).json({ error: 'Erreur serveur' });
+    }
+});
+
+// Obtenir la liste des bordereaux (Historique)
+router.get('/', authenticateToken, requireRole(['compilateur', 'admin', 'comptable', 'gm', 'analyste']), async (req, res) => {
     try {
         const bordereaux = await dbUtils.all(`
             SELECT b.*, u.nom_complet as createur_nom, 

@@ -128,7 +128,7 @@ function AppRoutes() {
         <Route
           path="/compilations"
           element={
-            <RoleBasedRoute allowedRoles={['compilateur', 'admin', 'comptable', 'gm']}>
+            <RoleBasedRoute allowedRoles={['compilateur', 'admin', 'comptable', 'gm', 'analyste']}>
               <CompilationsPage />
             </RoleBasedRoute>
           }

@@ -121,7 +121,7 @@ export default function RequisitionForm() {
             const existingItems = data.items;
             
             // Empêcher la modification si la réquisition est terminée
-            if (['validee', 'refusee', 'termine', 'payee', 'valide'].includes(req.statut)) {
+            if (['validee', 'refusee', 'termine', 'payee', 'valide'].includes(req.statut) && (user as any)?.role !== 'admin') {
               alert("Cette réquisition est terminée et ne peut plus être modifiée.");
               navigate('/requisitions');
               return;

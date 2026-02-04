@@ -105,7 +105,7 @@ const Layout: React.FC = () => {
     { text: 'Services', icon: <BusinessIcon />, path: '/services', roles: ['admin'] },
     { text: 'Zones', icon: <MapIcon />, path: '/zones', roles: ['admin'] },
     { text: 'Gestion des fonds', icon: <PaymentIcon />, path: '/payments', roles: ['comptable', 'admin', 'gm'] },
-    { text: 'Compilations', icon: <FolderOpenIcon />, path: '/compilations', roles: ['compilateur', 'admin', 'comptable', 'gm'] },
+    { text: 'Compilations', icon: <FolderOpenIcon />, path: '/compilations', roles: ['compilateur', 'admin', 'comptable', 'gm', 'analyste'] },
     { text: 'Trésorerie', icon: <AccountBalanceIcon />, path: '/funds', roles: ['comptable', 'admin', 'gm'] },
     { text: 'Paramètres', icon: <SettingsIcon />, path: '/settings', roles: ['admin'] },
   ];
