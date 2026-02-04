@@ -46,7 +46,7 @@ const UsersManagement: React.FC = () => {
     password: '',
     nom_complet: '',
     email: '',
-    role: 'emetteur' as 'admin' | 'emetteur' | 'analyste' | 'challenger' | 'validateur' | 'comptable' | 'gm' | 'pm',
+    role: 'emetteur' as 'admin' | 'emetteur' | 'analyste' | 'challenger' | 'validateur' | 'comptable' | 'gm' | 'pm' | 'compilateur',
     service_id: '',
     zone_id: '',
   });
@@ -61,6 +61,7 @@ const UsersManagement: React.FC = () => {
     { value: 'gm', label: 'General Manager', color: theme.palette.warning.main },
     { value: 'validateur', label: 'Validateur (PM)', color: theme.palette.success.main },
     { value: 'analyste', label: 'Analyste', color: theme.palette.info.main },
+    { value: 'compilateur', label: 'Compilateur', color: theme.palette.secondary.main },
     { value: 'emetteur', label: 'Initiateur', color: theme.palette.primary.main },
   ];
 

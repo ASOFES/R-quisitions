@@ -91,7 +91,9 @@ const checkRequisitionAccess = async (req, res, next) => {
          'validateur': 3,
          'pm': 3,
          'gm': 4,
-         'paiement': 5,
+        'compilation': 4,
+        'compilateur': 4,
+        'paiement': 5,
          'justificatif': 6
        };
    
