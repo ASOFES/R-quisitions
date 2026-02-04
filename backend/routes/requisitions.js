@@ -384,10 +384,11 @@ router.get('/:id', authenticateToken, checkRequisitionAccess, async (req, res) =
     
     // Récupérer la réquisition
     const requisition = await dbUtils.get(`
-      SELECT r.*, u.nom_complet as emetteur_nom, s.code as service_code, s.nom as service_nom
+      SELECT r.*, u.nom_complet as emetteur_nom, u.email as emetteur_email, u.role as emetteur_role, z.nom as emetteur_zone, s.code as service_code, s.nom as service_nom
       FROM requisitions r
       JOIN users u ON r.emetteur_id = u.id
       JOIN services s ON r.service_id = s.id
+      LEFT JOIN zones z ON u.zone_id = z.id
       WHERE r.id = ?
     `, [id]);
 

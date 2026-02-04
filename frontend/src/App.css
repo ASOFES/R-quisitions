@@ -43,7 +43,7 @@
   }
   
   /* Hide standard layout elements */
-  header, footer, nav, .MuiDrawer-root {
+  header, footer, nav, .MuiDrawer-root, .MuiAppBar-root {
     display: none !important;
   }
 
@@ -58,6 +58,8 @@
   
   .MuiDialog-container {
     display: block !important;
+    position: static !important;
+    transform: none !important;
   }
   
   .MuiPaper-root {
@@ -66,9 +68,53 @@
     max-width: none !important;
     width: 100% !important;
     margin: 0 !important;
+    height: 100% !important;
+    max-height: none !important;
+  }
+  
+  .MuiDialogContent-root {
+    padding: 20px !important;
+    max-height: none !important;
+  }
+  
+  .MuiDialogActions-root {
+    display: none !important;
   }
   
   body {
     background-color: white !important;
+    margin: 0 !important;
+    padding: 20px !important;
+  }
+  
+  /* Ensure all content is visible */
+  * {
+    visibility: visible !important;
+  }
+  
+  /* Hide only specific elements */
+  .no-print, button, .MuiButtonBase-root {
+    display: none !important;
+  }
+  
+  /* Make sure text is readable */
+  .MuiTypography-root {
+    color: black !important;
+    font-size: 12pt !important;
+  }
+  
+  /* Table styling for print */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  
+  th, td {
+    border: 1px solid black !important;
+    padding: 8px !important;
+  }
+  
+  th {
+    background-color: #f5f5f5 !important;
   }
 }

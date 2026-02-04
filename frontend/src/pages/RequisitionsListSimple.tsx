@@ -263,7 +263,26 @@ const RequisitionsList: React.FC = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    // Add a small delay to ensure the dialog is fully rendered
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
+  const getRoleLabel = (role?: string) => {
+    if (!role) return '-';
+    const roles: Record<string, string> = {
+      'admin': 'Administrateur',
+      'gm': 'General Manager',
+      'validateur': 'Validateur',
+      'analyste': 'Analyste',
+      'challenger': 'Challenger',
+      'compilateur': 'Compilateur',
+      'emetteur': 'Initiateur',
+      'comptable': 'Comptable',
+      'pm': 'Project Manager'
+    };
+    return roles[role.toLowerCase()] || role;
   };
 
   const getStatutConfig = (statut: string, niveau?: string) => {
@@ -605,6 +624,7 @@ const RequisitionsList: React.FC = () => {
               width: 100%;
               padding: 20px;
               background: white;
+              overflow: visible !important;
             }
             .no-print {
               display: none !important;
@@ -1110,7 +1130,7 @@ const RequisitionsList: React.FC = () => {
           </Box>
         </DialogTitle>
         
-        <DialogContent sx={{ py: 3 }}>
+        <DialogContent sx={{ py: 3 }} className="printable-content">
 
           {selectedRequisition && (
             <Box>
@@ -1252,6 +1272,26 @@ const RequisitionsList: React.FC = () => {
                       <Box>
                         <Typography variant="caption" color="text.secondary">Initiateur</Typography>
                         <Typography variant="body2" fontWeight={600}>{selectedRequisition.emetteur_nom}</Typography>
+                        {selectedRequisition.emetteur_role && (
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            {getRoleLabel(selectedRequisition.emetteur_role)}
+                          </Typography>
+                        )}
+                        {selectedRequisition.emetteur_zone && (
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            {selectedRequisition.emetteur_zone}
+                          </Typography>
+                        )}
+                        {selectedRequisition.emetteur_email && (
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            {selectedRequisition.emetteur_email}
+                          </Typography>
+                        )}
+                        {selectedRequisition.emetteur_telephone && (
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            {selectedRequisition.emetteur_telephone}
+                          </Typography>
+                        )}
                       </Box>
                       <Box>
                         <Typography variant="caption" color="text.secondary">Date de création</Typography>

@@ -27,6 +27,10 @@ export interface Requisition {
   updated_at: string;
   emetteur_id: number;
   emetteur_nom: string;
+  emetteur_email?: string;
+  emetteur_role?: string;
+  emetteur_telephone?: string;
+  emetteur_zone?: string;
   service_id: number;
   service_nom: string;
   niveau?: string;  // Ajout de la propriété niveau
