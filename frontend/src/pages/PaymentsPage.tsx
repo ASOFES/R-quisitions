@@ -108,6 +108,8 @@ const PaymentsPage: React.FC = () => {
   const [payStartDate, setPayStartDate] = useState('');
   const [payEndDate, setPayEndDate] = useState('');
   const [payFilterText, setPayFilterText] = useState('');
+  const [filterService, setFilterService] = useState<string>('all');
+  const [filterUrgence, setFilterUrgence] = useState<string>('all');
 
   // States for "Historique"
   const [history, setHistory] = useState<Payment[]>([]);
@@ -267,11 +269,18 @@ const PaymentsPage: React.FC = () => {
         req.numero.toLowerCase().includes(searchLower) ||
         req.objet.toLowerCase().includes(searchLower) ||
         req.emetteur_nom.toLowerCase().includes(searchLower) ||
-        (req.service_code && req.service_code.toLowerCase().includes(searchLower));
+        (req.service_nom && req.service_nom.toLowerCase().includes(searchLower));
 
-      return matchesDate && matchesText;
+      const matchesService = filterService === 'all' || (req.service_nom || 'Autre') === filterService;
+      const matchesUrgence = filterUrgence === 'all' || (req.urgence || 'normale') === filterUrgence;
+
+      return matchesDate && matchesText && matchesService && matchesUrgence;
     });
-  }, [requisitions, payStartDate, payEndDate, payFilterText]);
+  }, [requisitions, payStartDate, payEndDate, payFilterText, filterService, filterUrgence]);
+
+  // Extract unique services and urgencies for filters
+  const services = useMemo(() => Array.from(new Set(requisitions.map(r => r.service_nom || 'Autre'))).sort(), [requisitions]);
+  const urgencies = useMemo(() => Array.from(new Set(requisitions.map(r => r.urgence || 'normale'))).sort(), [requisitions]);
 
   const filteredHistory = useMemo(() => {
     return history.filter(payment => {
@@ -531,7 +540,7 @@ const PaymentsPage: React.FC = () => {
       <TabPanel value={tabValue} index={0}>
         <Paper sx={{ p: 2, mb: 3 }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <TextField
                 label="Date début"
                 type="date"
@@ -542,7 +551,7 @@ const PaymentsPage: React.FC = () => {
                 size="small"
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <TextField
                 label="Date fin"
                 type="date"
@@ -553,7 +562,37 @@ const PaymentsPage: React.FC = () => {
                 size="small"
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 2 }}>
+                <FormControl size="small" fullWidth>
+                    <InputLabel>Service</InputLabel>
+                    <Select
+                        value={filterService}
+                        label="Service"
+                        onChange={(e) => setFilterService(e.target.value)}
+                    >
+                        <MenuItem value="all">Tous</MenuItem>
+                        {services.map(s => (
+                            <MenuItem key={s} value={s}>{s}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, md: 2 }}>
+                <FormControl size="small" fullWidth>
+                    <InputLabel>Urgence</InputLabel>
+                    <Select
+                        value={filterUrgence}
+                        label="Urgence"
+                        onChange={(e) => setFilterUrgence(e.target.value)}
+                    >
+                        <MenuItem value="all">Toutes</MenuItem>
+                        {urgencies.map(u => (
+                            <MenuItem key={u} value={u}>{u}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, md: 2 }}>
               <TextField
                 label="Recherche..."
                 fullWidth
@@ -565,7 +604,7 @@ const PaymentsPage: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <Stack direction="row" spacing={1}>
                 <Button 
                   variant="outlined" 
@@ -643,6 +682,7 @@ const PaymentsPage: React.FC = () => {
                       <TableCell>Objet</TableCell>
                       <TableCell>Service</TableCell>
                       <TableCell>Initiateur</TableCell>
+                      <TableCell>Urgence</TableCell>
                       <TableCell>Mode</TableCell>
                       <TableCell align="right">Montant USD</TableCell>
                       <TableCell align="right">Montant CDF</TableCell>
@@ -683,6 +723,13 @@ const PaymentsPage: React.FC = () => {
                               <Chip label={req.service_code} size="small" variant="outlined" />
                             </TableCell>
                             <TableCell>{req.emetteur_nom}</TableCell>
+                            <TableCell>
+                                <Chip 
+                                    label={req.urgence || 'normale'} 
+                                    size="small" 
+                                    color={req.urgence === 'critique' ? 'error' : req.urgence === 'haute' ? 'warning' : 'default'} 
+                                />
+                            </TableCell>
                             <TableCell>
                               {req.mode_paiement ? (
                                 <Chip label={req.mode_paiement} color={req.mode_paiement === 'Cash' ? 'success' : 'primary'} size="small" />

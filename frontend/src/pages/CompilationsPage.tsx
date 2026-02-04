@@ -68,6 +68,10 @@ const CompilationsPage: React.FC = () => {
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [user, setUser] = useState<User | null>(null);
 
+  // Filters for "À Compiler"
+  const [filterService, setFilterService] = useState<string>('all');
+  const [filterUrgence, setFilterUrgence] = useState<string>('all');
+
   useEffect(() => {
     const userStr = localStorage.getItem('user');
     if (userStr) {
@@ -114,7 +118,7 @@ const CompilationsPage: React.FC = () => {
 
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.checked) {
-      setSelectedIds(requisitions.map((r) => r.id));
+      setSelectedIds(filteredRequisitions.map((r) => r.id));
     } else {
       setSelectedIds([]);
     }
@@ -177,6 +181,16 @@ const CompilationsPage: React.FC = () => {
 
   const isAnalysteOrAdmin = user?.role === 'analyste' || user?.role === 'admin';
 
+  // Extract unique services and urgencies for filters
+  const services = Array.from(new Set(requisitions.map(r => r.service_nom || 'Autre'))).sort();
+  const urgencies = Array.from(new Set(requisitions.map(r => r.urgence || 'normale'))).sort();
+
+  const filteredRequisitions = requisitions.filter(req => {
+    const serviceMatch = filterService === 'all' || (req.service_nom || 'Autre') === filterService;
+    const urgencyMatch = filterUrgence === 'all' || (req.urgence || 'normale') === filterUrgence;
+    return serviceMatch && urgencyMatch;
+  });
+
   if (loading && requisitions.length === 0 && bordereaux.length === 0) {
     return <CircularProgress />;
   }
@@ -200,30 +214,60 @@ const CompilationsPage: React.FC = () => {
 
         {/* Tab 1: À Compiler */}
         <TabPanel value={tabValue} index={0}>
-          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Typography variant="h6">
-              Réquisitions validées par le GM ({requisitions.length})
+              Réquisitions validées par le GM ({filteredRequisitions.length})
             </Typography>
-            <Button
-              variant="contained"
-              color="primary"
-              disabled={selectedIds.length === 0}
-              onClick={() => setConfirmOpen(true)}
-              startIcon={<PictureAsPdf />}
-            >
-              Générer Bordereau ({selectedIds.length})
-            </Button>
-            <Button
-              variant="outlined"
-              color="secondary"
-              onClick={() => {
-                setSelectedIds(requisitions.map((r) => r.id));
-                setConfirmOpen(true);
-              }}
-              sx={{ ml: 2 }}
-            >
-              Clôturer la file (Tout)
-            </Button>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Service</InputLabel>
+                    <Select
+                        value={filterService}
+                        label="Service"
+                        onChange={(e) => setFilterService(e.target.value)}
+                    >
+                        <MenuItem value="all">Tous les services</MenuItem>
+                        {services.map(s => (
+                            <MenuItem key={s} value={s}>{s}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Urgence</InputLabel>
+                    <Select
+                        value={filterUrgence}
+                        label="Urgence"
+                        onChange={(e) => setFilterUrgence(e.target.value)}
+                    >
+                        <MenuItem value="all">Toutes urgences</MenuItem>
+                        {urgencies.map(u => (
+                            <MenuItem key={u} value={u}>{u}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+            </Box>
+            <Box>
+                <Button
+                variant="contained"
+                color="primary"
+                disabled={selectedIds.length === 0}
+                onClick={() => setConfirmOpen(true)}
+                startIcon={<PictureAsPdf />}
+                sx={{ mr: 2 }}
+                >
+                Générer Bordereau ({selectedIds.length})
+                </Button>
+                <Button
+                variant="outlined"
+                color="secondary"
+                onClick={() => {
+                    setSelectedIds(filteredRequisitions.map((r) => r.id));
+                    setConfirmOpen(true);
+                }}
+                >
+                Clôturer la file (Tout)
+                </Button>
+            </Box>
           </Box>
 
           <TableContainer>
@@ -232,8 +276,8 @@ const CompilationsPage: React.FC = () => {
                 <TableRow>
                   <TableCell padding="checkbox">
                     <Checkbox
-                      indeterminate={selectedIds.length > 0 && selectedIds.length < requisitions.length}
-                      checked={requisitions.length > 0 && selectedIds.length === requisitions.length}
+                      indeterminate={selectedIds.length > 0 && selectedIds.length < filteredRequisitions.length}
+                      checked={filteredRequisitions.length > 0 && selectedIds.length === filteredRequisitions.length}
                       onChange={handleSelectAll}
                     />
                   </TableCell>
@@ -241,18 +285,19 @@ const CompilationsPage: React.FC = () => {
                   <TableCell>Objet</TableCell>
                   <TableCell>Initiateur</TableCell>
                   <TableCell>Service</TableCell>
+                  <TableCell>Urgence</TableCell>
                   <TableCell align="right">Montant USD</TableCell>
                   <TableCell align="right">Montant CDF</TableCell>
                   <TableCell>Date Création</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {requisitions.length === 0 ? (
+                {filteredRequisitions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center">Aucune réquisition à compiler</TableCell>
+                    <TableCell colSpan={9} align="center">Aucune réquisition à compiler</TableCell>
                   </TableRow>
                 ) : (
-                  requisitions.map((req) => {
+                  filteredRequisitions.map((req) => {
                     const isSelected = selectedIds.indexOf(req.id) !== -1;
                     return (
                       <TableRow
@@ -271,7 +316,14 @@ const CompilationsPage: React.FC = () => {
                         <TableCell>{req.numero}</TableCell>
                         <TableCell>{req.objet}</TableCell>
                         <TableCell>{req.emetteur_nom}</TableCell>
-                        <TableCell>{req.service_code}</TableCell>
+                        <TableCell>{req.service_nom}</TableCell>
+                        <TableCell>
+                            <Chip 
+                                label={req.urgence || 'normale'} 
+                                size="small" 
+                                color={req.urgence === 'critique' ? 'error' : req.urgence === 'haute' ? 'warning' : 'default'} 
+                            />
+                        </TableCell>
                         <TableCell align="right">{formatCurrency(req.montant_usd, 'USD')}</TableCell>
                         <TableCell align="right">{formatCurrency(req.montant_cdf, 'CDF')}</TableCell>
                         <TableCell>{new Date(req.created_at).toLocaleDateString()}</TableCell>

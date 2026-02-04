@@ -72,6 +72,11 @@ const EmitterProfile: React.FC = () => {
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState<Partial<EmitterProfileData>>({});
   const [showSuccess, setShowSuccess] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterService, setFilterService] = useState('all');
+  const [filterUrgence, setFilterUrgence] = useState('all');
+
+  const [allUserRequisitions, setAllUserRequisitions] = useState<Requisition[]>([]);
 
   const loadProfileData = useCallback(async () => {
     try {
@@ -96,13 +101,28 @@ const EmitterProfile: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('Réquisitions récupérées depuis le backend:', data);
-        console.log('ID utilisateur connecté:', user?.id);
-        console.log('Nombre total de réquisitions reçues:', data.length);
         
         // Filtrer uniquement les réquisitions de l'utilisateur connecté
         const userRequisitions = data.filter((req: any) => req.emetteur_id === user?.id);
-        console.log('Réquisitions filtrées pour émetteur:', userRequisitions);
-        console.log('Nombre de réquisitions pour émetteur:', userRequisitions.length);
+        
+        // Transformer les données pour le format attendu par le composant
+        const formattedRequisitions = userRequisitions.map((req: any) => ({
+          id: req.id,
+          reference: req.numero,
+          objet: req.objet,
+          montant: req.montant_usd || req.montant_cdf || 0,
+          devise: req.montant_usd ? 'USD' : 'CDF',
+          urgence: 'normale',
+          statut: req.statut,
+          created_at: req.created_at,
+          niveau: req.niveau,
+          actions: req.actions || [],
+          emetteur_nom: req.emetteur_nom,
+          service_nom: req.service_nom,
+          nb_pieces: req.nb_pieces || 0
+        }));
+
+        setAllUserRequisitions(formattedRequisitions);
         
         // Calculer les statistiques
         const userStats = {
@@ -132,31 +152,15 @@ const EmitterProfile: React.FC = () => {
         };
 
         setProfile(userProfile);
-        
-        // Transformer les données pour le format attendu par le composant
-        const formattedRequisitions = userRequisitions.map((req: any) => ({
-          id: req.id,
-          reference: req.numero,
-          objet: req.objet,
-          montant: req.montant_usd || req.montant_cdf || 0,
-          devise: req.montant_usd ? 'USD' : 'CDF',
-          urgence: 'normale',
-          statut: req.statut,
-          created_at: req.created_at,
-          niveau: req.niveau,
-          actions: req.actions || [],
-          emetteur_nom: req.emetteur_nom,
-          service_nom: req.service_nom,
-          nb_pieces: req.nb_pieces || 0
-        }));
-        
         setRecentRequisitions(formattedRequisitions.slice(0, 5));
       } else {
+        // Fallback logic
         console.error('Erreur lors de la récupération des réquisitions:', response.status);
-        // En cas d'erreur, essayer avec le service local
         const requisitionService = RequisitionService.getInstance();
         const allRequisitions = requisitionService.getAllRequisitions();
         const userRequisitions = allRequisitions.filter(req => req.emetteur_id === user?.id);
+        
+        setAllUserRequisitions(userRequisitions);
         
         const userStats = {
           total_requisitions: userRequisitions.length,
@@ -190,42 +194,6 @@ const EmitterProfile: React.FC = () => {
       setLoading(false);
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
-      // En cas d'erreur, essayer avec le service local
-      try {
-        const requisitionService = RequisitionService.getInstance();
-        const allRequisitions = requisitionService.getAllRequisitions();
-        const userRequisitions = allRequisitions.filter(req => req.emetteur_id === user?.id);
-        
-        const userStats = {
-          total_requisitions: userRequisitions.length,
-          requisitions_en_cours: userRequisitions.filter(r => r.statut === 'en_cours').length,
-          requisitions_validees: userRequisitions.filter(r => r.statut === 'validee').length,
-          requisitions_refusees: userRequisitions.filter(r => r.statut === 'refusee').length,
-          montant_total: userRequisitions.reduce((sum, r) => sum + r.montant, 0),
-          moyenne_montant: userRequisitions.length > 0 ? userRequisitions.reduce((sum, r) => sum + r.montant, 0) / userRequisitions.length : 0,
-        };
-
-        const userProfile: EmitterProfileData = {
-          id: user?.id || 1,
-          username: user?.username || 'emetteur',
-          email: user?.email || 'emetteur@company.com',
-          nom: 'Dupont',
-          prenom: 'Jean',
-          telephone: '+243 123 456 789',
-          role: user?.role || 'emetteur',
-          service_nom: userRequisitions.length > 0 ? userRequisitions[0].service_nom : 'Informatique',
-          service_id: userRequisitions.length > 0 ? userRequisitions[0].service_id : 1,
-          niveau: 'N1',
-          created_at: new Date().toISOString(),
-          last_login: new Date().toISOString(),
-          ...userStats,
-        };
-
-        setProfile(userProfile);
-        setRecentRequisitions(userRequisitions.slice(0, 5));
-      } catch (localError) {
-        console.error('Erreur avec le service local aussi:', localError);
-      }
       setLoading(false);
     }
   }, [user]);
@@ -306,6 +274,17 @@ const EmitterProfile: React.FC = () => {
       default: return urgence;
     }
   };
+
+  // Extract unique values for filters
+  const services = Array.from(new Set(allUserRequisitions.map(r => (r as any).service_nom).filter(Boolean)));
+  const urgences = Array.from(new Set(allUserRequisitions.map(r => r.urgence).filter(Boolean)));
+
+  const filteredRequisitions = allUserRequisitions.filter(req => {
+    const matchesStatus = filterStatus === 'all' || req.statut === filterStatus;
+    const matchesService = filterService === 'all' || (req as any).service_nom === filterService;
+    const matchesUrgence = filterUrgence === 'all' || req.urgence === filterUrgence;
+    return matchesStatus && matchesService && matchesUrgence;
+  });
 
   if (loading) {
     return (
@@ -514,23 +493,69 @@ const EmitterProfile: React.FC = () => {
           {/* Réquisitions récentes */}
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">
-                  <Assignment sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Mes Réquisitions Récentes
-                </Typography>
-                <Button 
-                  variant="outlined" 
-                  size="small"
-                  onClick={() => navigate('/requisitions')}
-                >
-                  Voir tout
-                </Button>
+              <Box sx={{ mb: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">
+                    <Assignment sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Mes Réquisitions
+                  </Typography>
+                </Box>
+                
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <FormControl size="small" fullWidth>
+                      <InputLabel>Statut</InputLabel>
+                      <Select
+                        value={filterStatus}
+                        label="Statut"
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                      >
+                        <MenuItem value="all">Toutes</MenuItem>
+                        <MenuItem value="brouillon">Brouillon</MenuItem>
+                        <MenuItem value="soumise">Soumise</MenuItem>
+                        <MenuItem value="en_cours">En cours</MenuItem>
+                        <MenuItem value="validee">Validée</MenuItem>
+                        <MenuItem value="refusee">Refusée</MenuItem>
+                        <MenuItem value="payee">Payée</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <FormControl size="small" fullWidth>
+                      <InputLabel>Service</InputLabel>
+                      <Select
+                        value={filterService}
+                        label="Service"
+                        onChange={(e) => setFilterService(e.target.value)}
+                      >
+                        <MenuItem value="all">Tous</MenuItem>
+                        {services.map((service: any) => (
+                          <MenuItem key={service} value={service}>{service}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <FormControl size="small" fullWidth>
+                      <InputLabel>Urgence</InputLabel>
+                      <Select
+                        value={filterUrgence}
+                        label="Urgence"
+                        onChange={(e) => setFilterUrgence(e.target.value)}
+                      >
+                        <MenuItem value="all">Toutes</MenuItem>
+                        {urgences.map((urgence: any) => (
+                          <MenuItem key={urgence} value={urgence}>{getUrgenceLabel(urgence)}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </Grid>
               </Box>
               
-              {recentRequisitions.length > 0 ? (
-                <List>
-                  {recentRequisitions.map((requisition) => (
+              {filteredRequisitions.length > 0 ? (
+                <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+                  {filteredRequisitions.map((requisition) => (
                     <React.Fragment key={requisition.id}>
                       <ListItem divider>
                         <ListItemIcon>

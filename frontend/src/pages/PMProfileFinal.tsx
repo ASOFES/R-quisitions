@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Container,
   Typography,
   Box,
@@ -60,6 +64,10 @@ const PMProfileImproved: React.FC = () => {
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({ ...user });
   const [requisitions, setRequisitions] = useState<any[]>([]);
+  const [allRequisitions, setAllRequisitions] = useState<any[]>([]);
+  const [filterStatus, setFilterStatus] = useState('pending');
+  const [filterService, setFilterService] = useState('all');
+  const [filterUrgence, setFilterUrgence] = useState('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -69,22 +77,65 @@ const PMProfileImproved: React.FC = () => {
   const loadProfileData = () => {
     try {
       const requisitionService = RequisitionService.getInstance();
-      const allRequisitions = requisitionService.getAllRequisitions();
+      const allReqs = requisitionService.getAllRequisitions();
       
-      // Filtrer les réquisitions qui nécessitent la validation du manager
-      const managerRequisitions = allRequisitions.filter(req => {
+      // Stocker toutes les réquisitions pour le filtrage
+      // Pour un PM/Validateur, on s'intéresse aux réquisitions qui sont:
+      // 1. En attente de validation par le manager (niveau actuel)
+      // 2. Ou qui ont été traitées (validées/refusées)
+      setAllRequisitions(allReqs);
+      
+      // Par défaut, afficher celles en attente
+      const pendingRequisitions = allReqs.filter(req => {
         return req.statut === 'en_cours' && 
                req.workflow && 
                req.workflow.current_step === 'manager_review';
       });
       
-      setRequisitions(managerRequisitions);
+      setRequisitions(pendingRequisitions);
       setLoading(false);
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (allRequisitions.length > 0) {
+      let filtered = [];
+      
+      // Status filtering
+      if (filterStatus === 'pending') {
+        filtered = allRequisitions.filter(req => 
+          req.statut === 'en_cours' && 
+          req.workflow && 
+          req.workflow.current_step === 'manager_review'
+        );
+      } else if (filterStatus === 'validated') {
+        filtered = allRequisitions.filter(req => req.statut === 'validee');
+      } else if (filterStatus === 'refused') {
+        filtered = allRequisitions.filter(req => req.statut === 'refusee');
+      } else {
+        // All relevant history (pending + validated + refused)
+        filtered = allRequisitions.filter(req => 
+          ['en_cours', 'validee', 'refusee', 'payee', 'termine'].includes(req.statut)
+        );
+      }
+      
+      // Service and Urgence filtering
+      filtered = filtered.filter(req => {
+        const matchesService = filterService === 'all' || (req.service_nom || 'Autre') === filterService;
+        const matchesUrgence = filterUrgence === 'all' || (req.urgence || 'normale') === filterUrgence;
+        return matchesService && matchesUrgence;
+      });
+
+      setRequisitions(filtered);
+    }
+  }, [filterStatus, filterService, filterUrgence, allRequisitions]);
+
+  // Extract unique values for filters
+  const services = Array.from(new Set(allRequisitions.map(r => r.service_nom || 'Autre'))).sort();
+  const urgences = Array.from(new Set(allRequisitions.map(r => r.urgence || 'normale'))).sort();
 
   const handleSave = () => {
     setUser(formData);
@@ -119,9 +170,18 @@ const PMProfileImproved: React.FC = () => {
   };
 
   const getStatistiques = () => {
-    const total = requisitions.length;
-    const enAttente = requisitions.filter(req => req.statut === 'en_cours').length;
-    const completes = requisitions.filter(req => req.statut === 'validee').length;
+    // Calculer les stats sur l'ensemble des réquisitions pertinentes, pas seulement celles affichées
+    const relevantReqs = allRequisitions.filter(req => 
+      ['en_cours', 'validee', 'refusee', 'payee', 'termine'].includes(req.statut)
+    );
+    
+    const total = relevantReqs.length;
+    const enAttente = allRequisitions.filter(req => 
+      req.statut === 'en_cours' && 
+      req.workflow && 
+      req.workflow.current_step === 'manager_review'
+    ).length;
+    const completes = allRequisitions.filter(req => req.statut === 'validee').length;
     
     return {
       total,
@@ -360,13 +420,63 @@ const PMProfileImproved: React.FC = () => {
             <Card sx={{ boxShadow: 3 }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Schedule color="primary" /> Réquisitions en attente de validation
+                  <Schedule color="primary" /> Réquisitions
                 </Typography>
+
+                <Box sx={{ mb: 3 }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={4}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Filtrer par statut</InputLabel>
+                        <Select
+                          value={filterStatus}
+                          label="Filtrer par statut"
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                        >
+                          <MenuItem value="pending">En attente de validation</MenuItem>
+                          <MenuItem value="validated">Validées</MenuItem>
+                          <MenuItem value="refused">Refusées</MenuItem>
+                          <MenuItem value="all">Tout l'historique</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Service</InputLabel>
+                        <Select
+                          value={filterService}
+                          label="Service"
+                          onChange={(e) => setFilterService(e.target.value)}
+                        >
+                          <MenuItem value="all">Tous</MenuItem>
+                          {services.map(s => (
+                            <MenuItem key={s as string} value={s as string}>{s as string}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Urgence</InputLabel>
+                        <Select
+                          value={filterUrgence}
+                          label="Urgence"
+                          onChange={(e) => setFilterUrgence(e.target.value)}
+                        >
+                          <MenuItem value="all">Toutes</MenuItem>
+                          {urgences.map(u => (
+                            <MenuItem key={u as string} value={u as string}>{u as string}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+                </Box>
 
                 {requisitions.length === 0 ? (
                   <Paper sx={{ p: 4, textAlign: 'center', bgcolor: '#f5f5f5' }}>
                     <Typography variant="body1" color="text.secondary">
-                      Aucune réquisition en attente de validation
+                      Aucune réquisition trouvée pour ce filtre
                     </Typography>
                   </Paper>
                 ) : (

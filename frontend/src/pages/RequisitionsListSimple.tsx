@@ -285,6 +285,38 @@ const RequisitionsList: React.FC = () => {
     return roles[role.toLowerCase()] || role;
   };
 
+  const getStatusFilters = (role?: string) => {
+    const allStatuses = [
+      { value: 'all', label: 'Tous' },
+      { value: 'brouillon', label: 'Brouillon' },
+      { value: 'soumise', label: 'Soumise' },
+      { value: 'en_cours', label: 'En cours' },
+      { value: 'a_corriger', label: 'À corriger' },
+      { value: 'validee', label: 'Validée' },
+      { value: 'refusee', label: 'Refusée' },
+      { value: 'payee', label: 'Payée' },
+      { value: 'termine', label: 'Terminée' },
+      { value: 'annulee', label: 'Annulée' }
+    ];
+
+    if (!role) return allStatuses;
+
+    const roleLower = role.toLowerCase();
+
+    // Comptable: Focus sur validé, payé, terminé
+    if (roleLower === 'comptable') {
+      return allStatuses.filter(s => ['all', 'validee', 'payee', 'termine', 'en_cours'].includes(s.value));
+    }
+
+    // Analyste, Validateur, GM, Challenger: Workflow de validation
+    if (['analyste', 'validateur', 'gm', 'challenger', 'compilateur'].includes(roleLower)) {
+      return allStatuses.filter(s => ['all', 'soumise', 'en_cours', 'validee', 'refusee', 'a_corriger'].includes(s.value));
+    }
+
+    // Emetteur, Admin, PM: Accès complet
+    return allStatuses;
+  };
+
   const getStatutConfig = (statut: string, niveau?: string) => {
     switch (statut) {
       case 'brouillon': return { label: 'Brouillon', color: theme.palette.grey[500], icon: <Drafts fontSize="small" /> };
@@ -755,12 +787,11 @@ const RequisitionsList: React.FC = () => {
                   label="Statut"
                   onChange={(e) => setFilterStatus(e.target.value)}
                 >
-                  <MenuItem value="all">Tous</MenuItem>
-                  <MenuItem value="brouillon">Brouillon</MenuItem>
-                  <MenuItem value="soumise">Soumise</MenuItem>
-                  <MenuItem value="en_cours">En cours</MenuItem>
-                  <MenuItem value="validee">Validée</MenuItem>
-                  <MenuItem value="refusee">Refusée</MenuItem>
+                  {getStatusFilters(user?.role).map((status) => (
+                    <MenuItem key={status.value} value={status.value}>
+                      {status.label}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>

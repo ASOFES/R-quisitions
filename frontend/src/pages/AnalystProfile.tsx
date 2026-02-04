@@ -81,6 +81,7 @@ const AnalystProfile: React.FC = () => {
   const [formData, setFormData] = useState<Partial<AnalystProfileData>>({});
   const [showSuccess, setShowSuccess] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterService, setFilterService] = useState<string>('all');
   const [filterUrgence, setFilterUrgence] = useState<string>('all');
 
   const loadProfileData = useCallback(async () => {
@@ -280,10 +281,14 @@ const AnalystProfile: React.FC = () => {
     }
   };
 
+  // Extract unique services
+  const services = Array.from(new Set(recentRequisitions.map(r => (r as any).service_nom).filter(Boolean)));
+
   const filteredRequisitions = recentRequisitions.filter(req => {
     const statusMatch = filterStatus === 'all' || req.statut === filterStatus;
     const urgenceMatch = filterUrgence === 'all' || req.urgence === filterUrgence;
-    return statusMatch && urgenceMatch;
+    const serviceMatch = filterService === 'all' || (req as any).service_nom === filterService;
+    return statusMatch && urgenceMatch && serviceMatch;
   });
 
   // Grouper les réquisitions par émetteur
@@ -621,9 +626,9 @@ const AnalystProfile: React.FC = () => {
                       onChange={(e) => setFilterStatus(e.target.value)}
                     >
                       <MenuItem value="all">Tous les statuts</MenuItem>
-                      <MenuItem value="brouillon">Brouillon</MenuItem>
                       <MenuItem value="soumise">Soumise</MenuItem>
                       <MenuItem value="en_cours">En cours</MenuItem>
+                      <MenuItem value="a_corriger">À corriger</MenuItem>
                       <MenuItem value="validee">Validée</MenuItem>
                       <MenuItem value="refusee">Refusée</MenuItem>
                       <MenuItem value="payee">Payée</MenuItem>
@@ -641,6 +646,19 @@ const AnalystProfile: React.FC = () => {
                       <MenuItem value="normale">Normale</MenuItem>
                       <MenuItem value="haute">Haute</MenuItem>
                       <MenuItem value="critique">Critique</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <InputLabel>Service</InputLabel>
+                    <Select
+                      value={filterService}
+                      label="Service"
+                      onChange={(e) => setFilterService(e.target.value)}
+                    >
+                      <MenuItem value="all">Tous les services</MenuItem>
+                      {services.map((s: any) => (
+                        <MenuItem key={s} value={s}>{s}</MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Box>

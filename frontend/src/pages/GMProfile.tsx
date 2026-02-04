@@ -16,6 +16,11 @@ import {
   IconButton,
   LinearProgress,
   TextField,
+  Grid,
+  MenuItem,
+  Select,
+  InputLabel,
+  FormControl,
 } from '@mui/material';
 import {
   Person,
@@ -44,6 +49,9 @@ const GMProfile: React.FC = () => {
   const [requisitions, setRequisitions] = useState<Requisition[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('pending');
+  const [filterService, setFilterService] = useState('all');
+  const [filterUrgence, setFilterUrgence] = useState('all');
   const [formData, setFormData] = useState({
     nom_complet: user?.nom_complet || '',
     email: user?.email || '',
@@ -78,26 +86,33 @@ const GMProfile: React.FC = () => {
         const allRequisitions = await response.json();
         console.log('Réquisitions récupérées depuis le backend pour GM:', allRequisitions);
         
-        // Pour le GM, filtrer les réquisitions qui nécessitent une validation (niveau GM) ou qui sont en attente de paiement
-        const gmRequisitions = allRequisitions.filter((req: any) => 
+        // Pour le GM, on garde tout ce qui est pertinent (y compris l'historique)
+        // Mais on marque ceux qui sont en attente pour le tri par défaut
+        const relevantRequisitions = allRequisitions.filter((req: any) => 
           req.niveau === 'gm' || 
           req.niveau === 'paiement' || 
-          (req.statut === 'validee' && req.niveau !== 'termine')
+          req.statut === 'validee' ||
+          req.statut === 'payee' ||
+          req.statut === 'refusee' ||
+          req.statut === 'termine'
         );
         
-        console.log('Réquisitions pour GM:', gmRequisitions);
-        setRequisitions(gmRequisitions);
+        console.log('Réquisitions pertinentes pour GM:', relevantRequisitions);
+        setRequisitions(relevantRequisitions);
       } else {
         console.error('Erreur lors de la récupération des réquisitions:', response.status);
         // En cas d'erreur, essayer avec le service local
         const requisitionService = RequisitionService.getInstance();
         const allRequisitions = requisitionService.getAllRequisitions();
-        const gmRequisitions = allRequisitions.filter(req => 
+        const relevantRequisitions = allRequisitions.filter(req => 
           req.niveau === 'gm' ||
           req.niveau === 'paiement' || 
-          (req.statut === 'validee' && req.niveau !== 'termine')
+          req.statut === 'validee' ||
+          req.statut === 'payee' ||
+          req.statut === 'refusee' ||
+          req.statut === 'termine'
         );
-        setRequisitions(gmRequisitions);
+        setRequisitions(relevantRequisitions);
       }
       
       setLoading(false);
@@ -417,6 +432,21 @@ const GMProfile: React.FC = () => {
 
   const stats = getStatistiques();
 
+  // Extract unique services
+  const services = Array.from(new Set(requisitions.map(r => (r as any).service_nom).filter(Boolean)));
+
+  const filteredRequisitions = requisitions.filter(req => {
+    const matchesStatus = 
+      filterStatus === 'all' ? true :
+      filterStatus === 'pending' ? (req.niveau === 'gm' || req.niveau === 'paiement' || (req.statut === 'validee' && req.niveau !== 'termine')) :
+      req.statut === filterStatus;
+      
+    const matchesService = filterService === 'all' || (req as any).service_nom === filterService;
+    const matchesUrgence = filterUrgence === 'all' || req.urgence === filterUrgence;
+    
+    return matchesStatus && matchesService && matchesUrgence;
+  });
+
   const getStatutLabel = (statut: string) => {
     switch (statut) {
       case 'brouillon': return 'Brouillon';
@@ -688,23 +718,77 @@ const GMProfile: React.FC = () => {
             </Box>
           </Box>
 
-          {/* Réquisitions en attente de validation finale */}
+          {/* Liste des réquisitions */}
           <Box sx={{ mt: 3 }}>
             <Card sx={{ boxShadow: 3 }}>
               <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Pending color="primary" /> Réquisitions en attente de validation finale
-                </Typography>
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <Pending color="primary" /> Liste des réquisitions
+                  </Typography>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={4}>
+                      <FormControl size="small" fullWidth>
+                        <InputLabel>Filtrer par statut</InputLabel>
+                        <Select
+                          value={filterStatus}
+                          label="Filtrer par statut"
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                        >
+                          <MenuItem value="pending">En attente de validation</MenuItem>
+                          <MenuItem value="all">Tout l'historique</MenuItem>
+                          <MenuItem value="validee">Validées</MenuItem>
+                          <MenuItem value="payee">Payées</MenuItem>
+                          <MenuItem value="refusee">Refusées</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    
+                    <Grid item xs={12} md={4}>
+                      <FormControl size="small" fullWidth>
+                        <InputLabel>Service</InputLabel>
+                        <Select
+                          value={filterService}
+                          label="Service"
+                          onChange={(e) => setFilterService(e.target.value)}
+                        >
+                          <MenuItem value="all">Tous les services</MenuItem>
+                          {services.map((s: any) => (
+                            <MenuItem key={s} value={s}>{s}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    
+                    <Grid item xs={12} md={4}>
+                      <FormControl size="small" fullWidth>
+                        <InputLabel>Urgence</InputLabel>
+                        <Select
+                          value={filterUrgence}
+                          label="Urgence"
+                          onChange={(e) => setFilterUrgence(e.target.value)}
+                        >
+                          <MenuItem value="all">Toutes urgences</MenuItem>
+                          <MenuItem value="basse">Basse</MenuItem>
+                          <MenuItem value="normale">Normale</MenuItem>
+                          <MenuItem value="haute">Haute</MenuItem>
+                          <MenuItem value="critique">Critique</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+                </Box>
 
-                {requisitions.length === 0 ? (
+                {filteredRequisitions.length === 0 ? (
                   <Paper sx={{ p: 4, textAlign: 'center', bgcolor: '#f5f5f5' }}>
                     <Typography variant="body1" color="text.secondary">
-                      Aucune réquisition en attente de validation finale
+                      Aucune réquisition trouvée pour ce filtre
                     </Typography>
                   </Paper>
                 ) : (
                   <List>
-                    {requisitions.map((requisition) => (
+                    {filteredRequisitions.map((requisition) => (
                       <ListItem key={requisition.id} divider>
                         <ListItemIcon>
                           <Pending color="primary" />
