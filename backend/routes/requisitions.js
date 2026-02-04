@@ -139,6 +139,40 @@ router.get('/compile/pdf', authenticateToken, async (req, res) => {
   }
 });
 
+// Générer le PDF pour une seule réquisition
+router.get('/:id/pdf', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    console.log(`Single PDF requested by ${user.username} for requisition ${id}`);
+
+    // Récupérer la réquisition avec les détails nécessaires
+    const requisition = await dbUtils.get(`
+      SELECT r.*, u.nom_complet as emetteur_nom, s.nom as service_nom
+      FROM requisitions r
+      LEFT JOIN users u ON r.emetteur_id = u.id
+      LEFT JOIN services s ON r.service_id = s.id
+      WHERE r.id = ?
+    `, [id]);
+
+    if (!requisition) {
+      return res.status(404).json({ message: 'Réquisition non trouvée.' });
+    }
+
+    // Le PdfService attend un tableau
+    const pdfBytes = await PdfService.compileRequisitionsPdf([requisition]);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=requisition_${requisition.numero || id}.pdf`);
+    res.send(Buffer.from(pdfBytes));
+
+  } catch (error) {
+    console.error('Erreur PDF compilation (single):', error);
+    res.status(500).json({ error: 'Erreur lors de la génération du PDF' });
+  }
+});
+
 // Obtenir les réquisitions selon le rôle de l'utilisateur
 router.get('/', authenticateToken, async (req, res) => {
   try {

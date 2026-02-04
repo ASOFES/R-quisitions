@@ -67,7 +67,7 @@ import { API_BASE_URL } from '../config';
 const RequisitionsList: React.FC = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [requisitions, setRequisitions] = useState<Requisition[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequisition, setSelectedRequisition] = useState<Requisition | null>(null);
@@ -273,11 +273,38 @@ const RequisitionsList: React.FC = () => {
     }
   };
 
-  const handlePrint = () => {
-    // Add a small delay to ensure the dialog is fully rendered
-    setTimeout(() => {
+  const handlePrint = async () => {
+    if (!selectedRequisition) return;
+
+    // Use backend PDF generation for consistent output (Header, Logo, Attachments)
+    try {
+      const authToken = token || localStorage.getItem('token');
+      if (!authToken) {
+        // Fallback for offline/demo mode if needed, or just warn
+        window.print();
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/requisitions/${selectedRequisition.id}/pdf`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        // Clean up after a delay
+        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+      } else {
+        console.error('Erreur PDF backend, fallback print');
+        window.print();
+      }
+    } catch (error) {
+      console.error('Erreur impression:', error);
       window.print();
-    }, 100);
+    }
   };
 
   const getRoleLabel = (role?: string) => {
