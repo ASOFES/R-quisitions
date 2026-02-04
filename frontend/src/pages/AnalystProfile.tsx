@@ -135,8 +135,14 @@ const AnalystProfile: React.FC = () => {
           requisitions_en_attente: requisitionsToAnalyse.filter((r: any) => r.statut === 'soumise').length,
           requisitions_approuvees: allRequisitions.filter((r: any) => r.statut === 'validee').length,
           requisitions_rejetees: requisitionsToAnalyse.filter((r: any) => r.statut === 'refusee').length,
-          montant_total_analyse: requisitionsToAnalyse.reduce((sum: number, r: any) => sum + (r.montant_usd || r.montant_cdf || 0), 0),
-          moyenne_montant: requisitionsToAnalyse.length > 0 ? requisitionsToAnalyse.reduce((sum: number, r: any) => sum + (r.montant_usd || r.montant_cdf || 0), 0) / requisitionsToAnalyse.length : 0,
+          montant_total_analyse: requisitionsToAnalyse.reduce((sum: number, r: any) => {
+            const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
+            return sum + (isNaN(val) ? 0 : val);
+          }, 0),
+          moyenne_montant: requisitionsToAnalyse.length > 0 ? requisitionsToAnalyse.reduce((sum: number, r: any) => {
+            const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
+            return sum + (isNaN(val) ? 0 : val);
+          }, 0) / requisitionsToAnalyse.length : 0,
           taux_validation: allRequisitions.length > 0 ? Math.round((allRequisitions.filter((r: any) => r.statut === 'validee').length / allRequisitions.length) * 100) : 0,
         };
 
