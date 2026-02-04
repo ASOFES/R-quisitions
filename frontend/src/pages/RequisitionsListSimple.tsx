@@ -1194,6 +1194,21 @@ const RequisitionsList: React.FC = () => {
 
           {selectedRequisition && (
             <Box>
+              {/* Header for Print (Logo & Title) */}
+              <Box sx={{ display: 'none', '@media print': { display: 'flex' }, justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 2, borderBottom: '2px solid #eee' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <img src="/logo192.png" alt="Logo" style={{ height: 60, width: 'auto' }} />
+                  <Box>
+                    <Typography variant="h6" fontWeight="bold" sx={{ color: 'primary.main' }}>GESTION DES RÉQUISITIONS</Typography>
+                    <Typography variant="body2" color="text.secondary">Fiche de suivi</Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="h5" fontWeight="900" color="text.primary">RÉQUISITION</Typography>
+                  <Typography variant="subtitle1" fontWeight="bold" color="primary.main">{selectedRequisition.reference}</Typography>
+                </Box>
+              </Box>
+
               {/* Response Warning */}
               {selectedRequisition.related_to && (
                 <Alert severity="warning" icon={<Reply />} sx={{ mb: 3 }}>
@@ -1290,18 +1305,38 @@ const RequisitionsList: React.FC = () => {
                         <Typography variant="body2" color="text.secondary">Chargement des pièces jointes...</Typography>
                       </Box>
                     ) : selectedRequisition.pieces_jointes && selectedRequisition.pieces_jointes.length > 0 ? (
-                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        {selectedRequisition.pieces_jointes.map((pj: string, idx: number) => (
-                          <Chip 
-                            key={idx} 
-                            icon={<AttachFile />} 
-                            label={pj} 
-                            variant="outlined" 
-                            clickable 
-                            onClick={() => handleDownloadAttachment(pj, selectedRequisition)}
-                          />
-                        ))}
-                      </Box>
+                      <>
+                        {/* Screen View */}
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', '@media print': { display: 'none' } }}>
+                          {selectedRequisition.pieces_jointes.map((pj: string, idx: number) => (
+                            <Chip 
+                              key={idx} 
+                              icon={<AttachFile />} 
+                              label={pj} 
+                              variant="outlined" 
+                              clickable 
+                              onClick={() => handleDownloadAttachment(pj, selectedRequisition)}
+                            />
+                          ))}
+                        </Box>
+
+                        {/* Print View */}
+                        <Box sx={{ display: 'none', '@media print': { display: 'block' } }}>
+                          <List dense disablePadding>
+                            {selectedRequisition.pieces_jointes.map((pj: string, idx: number) => (
+                              <ListItem key={idx} disablePadding sx={{ py: 0.5 }}>
+                                <ListItemIcon sx={{ minWidth: 32 }}>
+                                  <AttachFile fontSize="small" />
+                                </ListItemIcon>
+                                <ListItemText 
+                                  primary={pj} 
+                                  primaryTypographyProps={{ variant: 'body2' }}
+                                />
+                              </ListItem>
+                            ))}
+                          </List>
+                        </Box>
+                      </>
                     ) : (
                       <Typography variant="body2" color="text.secondary" fontStyle="italic">
                         Aucune pièce jointe.
