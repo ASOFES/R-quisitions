@@ -182,7 +182,14 @@ class PdfService {
             drawInfo('ÉMETTEUR', req.emetteur_nom, col2, rowY);
             drawInfo('SERVICE', req.service_nom || req.service_code, col3, rowY);
 
-            rowY -= 45;
+            rowY -= 35;
+
+            // Row 1.5 - Emetteur Details
+            drawInfo('EMAIL', req.emetteur_email, col1, rowY);
+            drawInfo('RÔLE', req.emetteur_role, col2, rowY);
+            drawInfo('ZONE', req.emetteur_zone, col3, rowY);
+
+            rowY -= 35;
 
             // Row 2
             drawInfo('OBJET', req.objet, col1, rowY);

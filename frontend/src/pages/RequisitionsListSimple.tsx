@@ -75,6 +75,8 @@ const RequisitionsList: React.FC = () => {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterUrgence, setFilterUrgence] = useState<string>('all');
+  const [filterService, setFilterService] = useState<string>('all');
+  const [services, setServices] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [startDate, setStartDate] = useState('');
@@ -156,6 +158,10 @@ const RequisitionsList: React.FC = () => {
             };
           });
           setRequisitions(formattedRequisitions);
+          
+          // Extraire les services uniques pour le filtre
+          const uniqueServices = Array.from(new Set(formattedRequisitions.map((r: any) => r.service_nom))).filter(Boolean).sort() as string[];
+          setServices(uniqueServices);
         } else {
           console.error('Format de données inattendu:', data);
           setRequisitions([]);
@@ -205,7 +211,12 @@ const RequisitionsList: React.FC = () => {
             pieces_jointes_data: data.pieces,
             actions: data.actions,
             nb_pieces: data.pieces.length,
-            items: data.items
+            items: data.items,
+            // Mise à jour des informations de l'émetteur pour l'affichage complet
+            emetteur_email: data.requisition.emetteur_email,
+            emetteur_role: data.requisition.emetteur_role,
+            emetteur_telephone: data.requisition.emetteur_telephone,
+            emetteur_zone: data.requisition.emetteur_zone
           };
         });
       }
@@ -486,6 +497,7 @@ const RequisitionsList: React.FC = () => {
   const filteredRequisitions = requisitions.filter(req => {
     const matchesStatus = filterStatus === 'all' || req.statut === filterStatus;
     const matchesUrgence = filterUrgence === 'all' || req.urgence === filterUrgence;
+    const matchesService = filterService === 'all' || req.service_nom === filterService;
     const matchesSearch = (req.objet || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
                           (req.reference || '').toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -497,7 +509,7 @@ const RequisitionsList: React.FC = () => {
       if (endDate && reqDate > endDate) matchesDate = false;
     }
 
-    return matchesStatus && matchesUrgence && matchesSearch && matchesDate;
+    return matchesStatus && matchesUrgence && matchesService && matchesSearch && matchesDate;
   });
 
   const activeRequisitions = filteredRequisitions.filter(req => {
@@ -762,7 +774,7 @@ const RequisitionsList: React.FC = () => {
         {/* Filters Bar */}
         <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 2.5 }}>
               <TextField
                 fullWidth
                 placeholder="Rechercher..."
@@ -781,6 +793,23 @@ const RequisitionsList: React.FC = () => {
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <FormControl fullWidth size="small">
+                <InputLabel>Service</InputLabel>
+                <Select
+                  value={filterService}
+                  label="Service"
+                  onChange={(e) => setFilterService(e.target.value)}
+                >
+                  <MenuItem value="all">Tous</MenuItem>
+                  {services.map((service) => (
+                    <MenuItem key={service} value={service}>
+                      {service}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+              <FormControl fullWidth size="small">
                 <InputLabel>Statut</InputLabel>
                 <Select
                   value={filterStatus}
@@ -795,7 +824,7 @@ const RequisitionsList: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 1.5 }}>
                <FormControl fullWidth size="small">
                 <InputLabel>Urgence</InputLabel>
                 <Select
@@ -811,7 +840,7 @@ const RequisitionsList: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 2.5 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <TextField
                 fullWidth
                 label="Du"
@@ -822,7 +851,7 @@ const RequisitionsList: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 2.5 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <TextField
                 fullWidth
                 label="Au"

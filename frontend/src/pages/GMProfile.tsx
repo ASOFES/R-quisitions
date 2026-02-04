@@ -159,6 +159,9 @@ const GMProfile: React.FC = () => {
         reference: 'REQ-TEST-001',
         created_at: new Date().toISOString(),
         emetteur_nom: 'Jean Dupont',
+        emetteur_email: 'jean.dupont@company.com',
+        emetteur_role: 'Emetteur',
+        emetteur_zone: 'Kinshasa',
         service_nom: 'Département IT',
         objet: 'Achat de 5 ordinateurs portables',
         montant: 12500,
@@ -171,6 +174,9 @@ const GMProfile: React.FC = () => {
         reference: 'REQ-TEST-002',
         created_at: new Date(Date.now() - 86400000).toISOString(),
         emetteur_nom: 'Marie Martin',
+        emetteur_email: 'marie.martin@company.com',
+        emetteur_role: 'Emetteur',
+        emetteur_zone: 'Lubumbashi',
         service_nom: 'Ressources Humaines',
         objet: 'Formation Leadership',
         montant: 3500,
@@ -202,8 +208,11 @@ const GMProfile: React.FC = () => {
       doc.setFont('helvetica', 'normal');
       
       const details = [
-        ['Initiateur:', req.emetteur_nom],
-        ['Service:', req.service_nom],
+        ['Initiateur:', (req as any).emetteur_nom],
+        ['Email:', (req as any).emetteur_email],
+        ['Rôle:', (req as any).emetteur_role],
+        ['Zone:', (req as any).emetteur_zone],
+        ['Service:', (req as any).service_nom],
         ['Objet:', req.objet],
         ['Montant:', `${req.montant.toLocaleString()} ${req.devise}`],
         ['Urgence:', req.urgence],
@@ -314,6 +323,9 @@ const GMProfile: React.FC = () => {
       
       const details = [
         ['Initiateur:', (req as any).emetteur_nom || 'N/A'],
+        ['Email:', (req as any).emetteur_email || 'N/A'],
+        ['Rôle:', (req as any).emetteur_role || 'N/A'],
+        ['Zone:', (req as any).emetteur_zone || 'N/A'],
         ['Service:', (req as any).service_nom || 'N/A'],
         ['Objet:', req.objet],
         ['Montant:', `${req.montant.toLocaleString()} ${req.devise}`],

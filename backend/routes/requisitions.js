@@ -144,10 +144,11 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const user = req.user;
     let query = `
-      SELECT r.*, u.nom_complet as emetteur_nom, s.code as service_code, s.nom as service_nom,
+      SELECT r.*, u.nom_complet as emetteur_nom, u.email as emetteur_email, u.role as emetteur_role, z.nom as emetteur_zone, s.code as service_code, s.nom as service_nom,
              (SELECT COUNT(*) FROM pieces_jointes pj WHERE pj.requisition_id = r.id) as nb_pieces
       FROM requisitions r
       LEFT JOIN users u ON r.emetteur_id = u.id
+      LEFT JOIN zones z ON u.zone_id = z.id
       JOIN services s ON r.service_id = s.id
     `;
     
