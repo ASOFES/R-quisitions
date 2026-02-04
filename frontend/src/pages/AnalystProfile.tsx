@@ -135,6 +135,7 @@ const AnalystProfile: React.FC = () => {
           requisitions_en_attente: requisitionsToAnalyse.filter((r: any) => r.statut === 'soumise').length,
           requisitions_approuvees: allRequisitions.filter((r: any) => r.statut === 'validee').length,
           requisitions_rejetees: requisitionsToAnalyse.filter((r: any) => r.statut === 'refusee').length,
+          // Fix: Ensure strict number parsing to avoid string concatenation
           montant_total_analyse: requisitionsToAnalyse.reduce((sum: number, r: any) => {
             const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
             return sum + (isNaN(val) ? 0 : val);
