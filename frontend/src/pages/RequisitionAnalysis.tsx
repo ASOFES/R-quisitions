@@ -42,6 +42,7 @@ import {
   AttachFile,
   Download,
   Timeline,
+  LocalPrintshop,
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -60,11 +61,42 @@ interface AnalysisData {
 }
 
 const RequisitionAnalysis: React.FC = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   
   const [requisition, setRequisition] = useState<Requisition | null>(null);
+
+  const handlePrint = async () => {
+    if (!requisition) return;
+
+    try {
+      const authToken = token || localStorage.getItem('token');
+      if (!authToken) {
+        window.print();
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/requisitions/${requisition.id}/pdf`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+      } else {
+        console.error('Erreur PDF backend, fallback print');
+        window.print();
+      }
+    } catch (error) {
+      console.error('Erreur impression:', error);
+      window.print();
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -512,6 +544,14 @@ const RequisitionAnalysis: React.FC = () => {
           <Typography variant="h4">Analyse de Réquisition</Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <Button
+            variant="outlined"
+            startIcon={<LocalPrintshop />}
+            onClick={handlePrint}
+          >
+            Imprimer
+          </Button>
+
           {/* Résumé du workflow */}
           {requisition.workflow && (
             <WorkflowSummary workflow={requisition.workflow} />
