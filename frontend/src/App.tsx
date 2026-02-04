@@ -55,7 +55,14 @@ function AppRoutes() {
       {/* Protected Routes wrapped in Layout */}
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<SimpleDashboard />} />
-        <Route path="/users" element={<UsersManagement />} />
+        <Route
+          path="/users"
+          element={
+            <RoleBasedRoute allowedRoles={['admin']}>
+              <UsersManagement />
+            </RoleBasedRoute>
+          }
+        />
         <Route path="/services" element={<ServicesManagement />} />
         <Route path="/sites" element={<SitesManagement />} />
         <Route path="/zones" element={<ZonesManagement />} />

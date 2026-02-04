@@ -20,6 +20,10 @@ import {
   DialogContent,
   DialogActions,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { requisitionsAPI, Requisition, Bordereau, User } from '../services/api';
 import { PictureAsPdf, AddTask, History, FactCheck } from '@mui/icons-material';

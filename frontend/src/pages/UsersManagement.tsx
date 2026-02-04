@@ -146,9 +146,10 @@ const UsersManagement: React.FC = () => {
       }
       handleCloseDialog();
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur lors de la sauvegarde:', error);
-      setAlert({ type: 'error', message: 'Erreur lors de la sauvegarde' });
+      const message = error?.response?.data?.error || 'Erreur lors de la sauvegarde';
+      setAlert({ type: 'error', message });
     }
   };
 

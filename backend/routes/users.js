@@ -9,10 +9,14 @@ const router = express.Router();
 router.get('/', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const users = await dbUtils.all(`
-      SELECT u.id, u.username, u.nom_complet, u.email, u.role, u.actif, u.created_at,
-             s.code as service_code, s.nom as service_nom
+      SELECT 
+        u.id, u.username, u.nom_complet, u.email, u.role, u.actif, u.created_at,
+        u.service_id, u.zone_id,
+        s.code as service_code, s.nom as service_nom,
+        z.code as zone_code, z.nom as zone_nom
       FROM users u 
       LEFT JOIN services s ON u.service_id = s.id 
+      LEFT JOIN zones z ON u.zone_id = z.id
       ORDER BY u.created_at DESC
     `);
 
@@ -26,7 +30,7 @@ router.get('/', authenticateToken, requireRole(['admin']), async (req, res) => {
 // Créer un utilisateur (admin seulement)
 router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    const { username, password, nom_complet, email, role, service_id } = req.body;
+    const { username, password, nom_complet, email, role, service_id, zone_id } = req.body;
 
     if (!username || !password || !nom_complet || !role) {
       return res.status(400).json({ error: 'Champs obligatoires manquants' });
@@ -43,8 +47,8 @@ router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => 
 
     // Insérer l'utilisateur
     const result = await dbUtils.run(
-      'INSERT INTO users (username, password, nom_complet, email, role, service_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [username, hashedPassword, nom_complet, email, role, service_id || null]
+      'INSERT INTO users (username, password, nom_complet, email, role, service_id, zone_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [username, hashedPassword, nom_complet, email, role, service_id || null, zone_id || null]
     );
 
     res.status(201).json({
