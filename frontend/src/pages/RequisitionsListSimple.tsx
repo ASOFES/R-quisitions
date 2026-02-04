@@ -662,17 +662,33 @@ const RequisitionsList: React.FC = () => {
               visibility: visible;
             }
             .printable-content {
-              position: absolute;
+              position: fixed;
               left: 0;
               top: 0;
-              width: 100%;
+              width: 100vw;
+              height: 100vh;
+              margin: 0;
               padding: 20px;
               background: white;
+              z-index: 9999;
               overflow: visible !important;
             }
             .no-print {
               display: none !important;
             }
+            .print-only {
+              display: flex !important;
+            }
+            .print-only-block {
+              display: block !important;
+            }
+            .screen-only {
+              display: none !important;
+            }
+          }
+          /* Screen styles */
+          .print-only, .print-only-block {
+            display: none;
           }
         `}
       </style>
@@ -1195,7 +1211,7 @@ const RequisitionsList: React.FC = () => {
           {selectedRequisition && (
             <Box>
               {/* Header for Print (Logo & Title) */}
-              <Box sx={{ display: 'none', '@media print': { display: 'flex' }, justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 2, borderBottom: '2px solid #eee' }}>
+              <Box className="print-only" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 2, borderBottom: '2px solid #eee' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <img src="/logo192.png" alt="Logo" style={{ height: 60, width: 'auto' }} />
                   <Box>
@@ -1307,7 +1323,7 @@ const RequisitionsList: React.FC = () => {
                     ) : selectedRequisition.pieces_jointes && selectedRequisition.pieces_jointes.length > 0 ? (
                       <>
                         {/* Screen View */}
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', '@media print': { display: 'none' } }}>
+                        <Box className="screen-only" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                           {selectedRequisition.pieces_jointes.map((pj: string, idx: number) => (
                             <Chip 
                               key={idx} 
@@ -1321,7 +1337,7 @@ const RequisitionsList: React.FC = () => {
                         </Box>
 
                         {/* Print View */}
-                        <Box sx={{ display: 'none', '@media print': { display: 'block' } }}>
+                        <Box className="print-only-block">
                           <List dense disablePadding>
                             {selectedRequisition.pieces_jointes.map((pj: string, idx: number) => (
                               <ListItem key={idx} disablePadding sx={{ py: 0.5 }}>
