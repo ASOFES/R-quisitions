@@ -70,7 +70,9 @@ async function seedData() {
         ];
 
         for (const user of users) {
-            const existing = await dbUtils.get('SELECT id FROM users WHERE username = ?', [user.username]);
+            const email = `${user.username}@test.com`;
+            const existing = await dbUtils.get('SELECT id FROM users WHERE username = ? OR email = ?', [user.username, email]);
+            
             if (!existing) {
                 await dbUtils.run(
                     'INSERT INTO users (username, password, nom_complet, email, role, service_id, zone_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -78,7 +80,7 @@ async function seedData() {
                         user.username, 
                         passwordHash, 
                         user.username.toUpperCase(), 
-                        `${user.username}@test.com`, 
+                        email, 
                         user.role, 
                         user.service ? user.service.id : null,
                         kinZone ? kinZone.id : null
@@ -86,10 +88,10 @@ async function seedData() {
                 );
                 console.log(`✅ Utilisateur ${user.username} ajouté.`);
             } else {
-                // Mise à jour de l'activation et du rôle
+                // Mise à jour complète pour assurer la cohérence (notamment si trouvé par email mais mauvais username)
                 await dbUtils.run(
-                    'UPDATE users SET actif = TRUE, role = ? WHERE id = ?',
-                    [user.role, existing.id]
+                    'UPDATE users SET username = ?, email = ?, role = ?, service_id = ?, actif = TRUE WHERE id = ?',
+                    [user.username, email, user.role, user.service ? user.service.id : null, existing.id]
                 );
                 console.log(`🔄 Utilisateur ${user.username} vérifié et mis à jour.`);
             }
