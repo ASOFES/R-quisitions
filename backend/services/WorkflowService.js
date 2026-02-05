@@ -133,9 +133,14 @@ class WorkflowService {
                  }
 
                  // Enregistrement unique dans la table paiements
-                 if (totalUsd > 0 || totalCdf > 0) {
+                 // Vérification idempotence
+                 const existingPayment = await dbUtils.get('SELECT id FROM paiements WHERE requisition_id = ?', [requisitionId]);
+                 
+                 if (!existingPayment && (totalUsd > 0 || totalCdf > 0)) {
                      await dbUtils.run('INSERT INTO paiements (requisition_id, montant_usd, montant_cdf, commentaire, comptable_id) VALUES (?, ?, ?, ?, ?)',
                          [requisitionId, totalUsd, totalCdf, commentaire || 'Paiement effectué', userId]);
+                 } else if (existingPayment) {
+                     console.warn(`Paiement déjà existant pour réquisition ${requisitionId} via WorkflowService. Skip insert.`);
                  }
              }
              

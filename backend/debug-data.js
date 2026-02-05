@@ -24,6 +24,18 @@ async function debugData() {
         `);
         console.table(bords);
 
+        // Check requisitions content for bordereau 5
+        if (bords.length > 0) {
+            console.log(`\nRequisitions pour Bordereau ${bords[0].id}:`);
+            const reqsBord = await dbUtils.all('SELECT id, numero, niveau, statut FROM requisitions WHERE bordereau_id = ?', [bords[0].id]);
+            console.table(reqsBord);
+        }
+
+        // Check requisitions waiting for compilation
+        console.log('\n4. Réquisitions en attente de compilation (niveau="compilation"):');
+        const reqsComp = await dbUtils.all('SELECT id, numero, niveau, statut FROM requisitions WHERE niveau = "compilation"');
+        console.table(reqsComp);
+
         // 3. Simulate Query used in /a-aligner
         console.log('\n3. Simulation requête /a-aligner:');
         const aligner = await dbUtils.all(`

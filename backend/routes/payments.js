@@ -159,11 +159,42 @@ router.post('/effectuer', authenticateToken, requireRole(['comptable', 'admin'])
     for (const reqId of requisition_ids) {
       const requisition = await dbUtils.get('SELECT * FROM requisitions WHERE id = ?', [reqId]);
 
-      // Enregistrer le paiement
-      await dbUtils.run(
-        'INSERT INTO paiements (requisition_id, montant_usd, montant_cdf, commentaire, comptable_id) VALUES (?, ?, ?, ?, ?)',
-        [reqId, requisition.montant_usd, requisition.montant_cdf, commentaire, user.id]
-      );
+      // Vérifier si un paiement existe déjà (Idempotence)
+      const existingPayment = await dbUtils.get('SELECT id FROM paiements WHERE requisition_id = ?', [reqId]);
+      
+      if (!existingPayment) {
+          // Enregistrer le paiement
+          await dbUtils.run(
+            'INSERT INTO paiements (requisition_id, montant_usd, montant_cdf, commentaire, comptable_id) VALUES (?, ?, ?, ?, ?)',
+            [reqId, requisition.montant_usd, requisition.montant_cdf, commentaire, user.id]
+          );
+
+          // Déduire des fonds
+          if (requisition.montant_usd) {
+            await dbUtils.run(
+              'UPDATE fonds SET montant_disponible = montant_disponible - ?, updated_at = CURRENT_TIMESTAMP WHERE devise = ?',
+              [requisition.montant_usd, 'USD']
+            );
+
+            await dbUtils.run(
+              'INSERT INTO mouvements_fonds (type_mouvement, montant, devise, description) VALUES (?, ?, ?, ?)',
+              ['sortie', requisition.montant_usd, 'USD', `Paiement réquisition ${requisition.numero}`]
+            );
+          }
+          if (requisition.montant_cdf) {
+            await dbUtils.run(
+              'UPDATE fonds SET montant_disponible = montant_disponible - ?, updated_at = CURRENT_TIMESTAMP WHERE devise = ?',
+              [requisition.montant_cdf, 'CDF']
+            );
+
+            await dbUtils.run(
+              'INSERT INTO mouvements_fonds (type_mouvement, montant, devise, description) VALUES (?, ?, ?, ?)',
+              ['sortie', requisition.montant_cdf, 'CDF', `Paiement réquisition ${requisition.numero}`]
+            );
+          }
+      } else {
+          console.warn(`Paiement déjà existant pour réquisition ${reqId}. Skip insert/funds, proceed to status update.`);
+      }
 
       // Mettre à jour la réquisition
       let updateQuery = 'UPDATE requisitions SET niveau = ?, updated_at = CURRENT_TIMESTAMP';
@@ -184,31 +215,6 @@ router.post('/effectuer', authenticateToken, requireRole(['comptable', 'admin'])
         'INSERT INTO requisition_actions (requisition_id, utilisateur_id, action, commentaire, niveau_avant, niveau_apres) VALUES (?, ?, ?, ?, ?, ?)',
         [reqId, user.id, 'payer', commentaire, 'paiement', 'justificatif']
       );
-
-      // Déduire des fonds
-      if (requisition.montant_usd) {
-        await dbUtils.run(
-          'UPDATE fonds SET montant_disponible = montant_disponible - ?, updated_at = CURRENT_TIMESTAMP WHERE devise = ?',
-          [requisition.montant_usd, 'USD']
-        );
-
-        await dbUtils.run(
-          'INSERT INTO mouvements_fonds (type_mouvement, montant, devise, description) VALUES (?, ?, ?, ?)',
-          ['sortie', requisition.montant_usd, 'USD', `Paiement réquisition ${requisition.numero}`]
-        );
-      }
-
-      if (requisition.montant_cdf) {
-        await dbUtils.run(
-          'UPDATE fonds SET montant_disponible = montant_disponible - ?, updated_at = CURRENT_TIMESTAMP WHERE devise = ?',
-          [requisition.montant_cdf, 'CDF']
-        );
-
-        await dbUtils.run(
-          'INSERT INTO mouvements_fonds (type_mouvement, montant, devise, description) VALUES (?, ?, ?, ?)',
-          ['sortie', requisition.montant_cdf, 'CDF', `Paiement réquisition ${requisition.numero}`]
-        );
-      }
 
       results.push({
         requisitionId: reqId,
