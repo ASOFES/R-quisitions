@@ -197,10 +197,14 @@ const CompilationsPage: React.FC = () => {
   };
 
   const handleDownloadPdf = async (bordereau: Bordereau) => {
+    console.log('=== handleDownloadPdf appelé ===');
+    console.log('Bordereau:', bordereau);
+    
     try {
       const token = localStorage.getItem('token');
       
       if (!token) {
+          console.log('ERREUR: Token non trouvé');
           setError('Session expirée, veuillez vous reconnecter.');
           return;
       }
@@ -502,7 +506,10 @@ const CompilationsPage: React.FC = () => {
                         size="small" 
                         variant="outlined" 
                         startIcon={<PictureAsPdf />}
-                        onClick={() => handleDownloadPdf(bord)}
+                        onClick={() => {
+                            console.log('Bouton PDF cliqué pour:', bord);
+                            handleDownloadPdf(bord);
+                        }}
                        >
                          PDF
                        </Button>
