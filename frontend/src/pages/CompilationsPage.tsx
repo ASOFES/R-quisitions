@@ -188,6 +188,22 @@ const CompilationsPage: React.FC = () => {
       }
   };
 
+  const handleDownloadPdf = async (bordereau: Bordereau) => {
+    try {
+      const blob = await requisitionsAPI.downloadBordereauPdf(bordereau.id);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Bordereau_${bordereau.numero}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      if (link.parentNode) link.parentNode.removeChild(link);
+    } catch (err) {
+      console.error('Erreur téléchargement PDF:', err);
+      setError('Impossible de télécharger le PDF.');
+    }
+  };
+
   const formatCurrency = (amount?: number, currency: string = 'USD') => {
     if (amount === undefined || amount === null) return '-';
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(amount);
@@ -427,8 +443,12 @@ const CompilationsPage: React.FC = () => {
                     <TableCell align="right">{formatCurrency(bord.total_usd, 'USD')}</TableCell>
                     <TableCell align="right">{formatCurrency(bord.total_cdf, 'CDF')}</TableCell>
                     <TableCell align="center">
-                       {/* Placeholder pour téléchargement PDF */}
-                       <Button size="small" variant="outlined" startIcon={<PictureAsPdf />}>
+                       <Button 
+                        size="small" 
+                        variant="outlined" 
+                        startIcon={<PictureAsPdf />}
+                        onClick={() => handleDownloadPdf(bord)}
+                       >
                          PDF
                        </Button>
                     </TableCell>

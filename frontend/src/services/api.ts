@@ -325,6 +325,13 @@ export const requisitionsAPI = {
     return response.data;
   },
 
+  downloadBordereauPdf: async (id: number) => {
+    const response = await api.get(`/compilations/${id}/pdf`, {
+        responseType: 'blob', // Important pour le téléchargement de fichier
+    });
+    return response.data;
+  },
+
   alignBordereau: async (id: number, modePaiement?: string) => {
     const response = await api.post(`/compilations/${id}/aligner`, { mode_paiement: modePaiement });
     return response.data;

@@ -155,10 +155,11 @@ router.get('/', authenticateToken, requireRole(['compilateur', 'admin', 'comptab
     }
 });
 
-// Générer PDF du bordereau (Simulation simple pour l'instant)
+const PdfService = require('../services/PdfService');
+const pdfService = new PdfService();
+
+// Générer PDF du bordereau
 router.get('/:id/pdf', authenticateToken, async (req, res) => {
-    // TODO: Implémenter une vraie génération PDF avec pdfmake ou puppeteer
-    // Pour l'instant, on renvoie les données JSON structurées pour que le front puisse afficher "Aperçu"
     try {
         const bordereauId = req.params.id;
         const bordereau = await dbUtils.get('SELECT * FROM bordereaux WHERE id = ?', [bordereauId]);
@@ -166,7 +167,9 @@ router.get('/:id/pdf', authenticateToken, async (req, res) => {
         if (!bordereau) return res.status(404).json({ error: 'Bordereau non trouvé' });
 
         const requisitions = await dbUtils.all(`
-            SELECT r.*, u.nom_complet as emetteur_nom, s.nom as service_nom
+            SELECT r.*, u.nom_complet as emetteur_nom, u.email as emetteur_email, u.role as emetteur_role,
+                   s.nom as service_nom, s.code as service_code,
+                   (SELECT nom FROM zones WHERE id = u.zone_id) as emetteur_zone
             FROM requisitions r
             JOIN users u ON r.emetteur_id = u.id
             JOIN services s ON r.service_id = s.id
@@ -174,10 +177,19 @@ router.get('/:id/pdf', authenticateToken, async (req, res) => {
             ORDER BY r.numero
         `, [bordereauId]);
 
-        res.json({ bordereau, requisitions });
+        const pdfBuffer = await pdfService.compileRequisitionsPdf(requisitions);
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="Bordereau_${bordereau.numero}.pdf"`,
+            'Content-Length': pdfBuffer.length
+        });
+
+        res.send(Buffer.from(pdfBuffer));
+
     } catch (error) {
-        console.error('Erreur données PDF bordereau:', error);
-        res.status(500).json({ error: 'Erreur serveur' });
+        console.error('Erreur génération PDF bordereau:', error);
+        res.status(500).json({ error: 'Erreur serveur lors de la génération du PDF' });
     }
 });
 
