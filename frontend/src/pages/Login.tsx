@@ -244,6 +244,8 @@ const Login: React.FC = () => {
                 'pm.user': { name: 'Challenger', desc: 'Validation Niv 2' },
                 'gm.user': { name: 'Validateur', desc: 'Validation Finale' },
                 'chef.rh': { name: 'Chef de Service', desc: 'Approbation Chef' },
+                'compilateur': { name: 'Compilateur', desc: 'Prép. Paiement' },
+                'comptable': { name: 'Comptable', desc: 'Paiements' },
               }).map(([userKey, info]) => (
                 <Card 
                   key={userKey} 

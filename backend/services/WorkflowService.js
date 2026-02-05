@@ -63,9 +63,12 @@ class WorkflowService {
         if (currentNiveau === 'emetteur' && action === 'valider') {
              try {
                 const service = await dbUtils.get('SELECT chef_id FROM services WHERE id = ?', [requisition.service_id]);
-                if (service && service.chef_id) {
+                // On passe au chef seulement si un chef est configuré ET que ce n'est pas l'émetteur lui-même
+                if (service && service.chef_id && service.chef_id !== requisition.emetteur_id) {
                     console.log(`Requisition ${requisition.numero}: Chef de service configuré (ID: ${service.chef_id}), passage à approbation_service.`);
                     niveauApres = 'approbation_service';
+                } else if (service && service.chef_id === requisition.emetteur_id) {
+                    console.log(`Requisition ${requisition.numero}: L'émetteur est le chef de service, saut de l'étape approbation_service.`);
                 }
              } catch (err) {
                  console.error('Erreur vérification chef service:', err);
