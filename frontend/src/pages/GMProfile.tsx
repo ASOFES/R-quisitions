@@ -757,7 +757,7 @@ const GMProfile: React.FC = () => {
                       </FormControl>
                     </Grid>
                     
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <FormControl size="small" fullWidth>
                         <InputLabel>Service</InputLabel>
                         <Select
@@ -773,7 +773,7 @@ const GMProfile: React.FC = () => {
                       </FormControl>
                     </Grid>
                     
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <FormControl size="small" fullWidth>
                         <InputLabel>Urgence</InputLabel>
                         <Select

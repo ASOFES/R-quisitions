@@ -507,7 +507,7 @@ const EmitterProfile: React.FC = () => {
                 </Box>
                 
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <FormControl size="small" fullWidth>
                       <InputLabel>Statut</InputLabel>
                       <Select
@@ -525,7 +525,7 @@ const EmitterProfile: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <FormControl size="small" fullWidth>
                       <InputLabel>Service</InputLabel>
                       <Select
@@ -540,7 +540,7 @@ const EmitterProfile: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <FormControl size="small" fullWidth>
                       <InputLabel>Urgence</InputLabel>
                       <Select
