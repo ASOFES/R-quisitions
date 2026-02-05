@@ -328,6 +328,9 @@ export const requisitionsAPI = {
   downloadBordereauPdf: async (id: number) => {
     const response = await api.get(`/compilations/${id}/pdf`, {
         responseType: 'blob', // Important pour le téléchargement de fichier
+        headers: {
+            'Accept': 'application/pdf'
+        }
     });
     return response.data;
   },

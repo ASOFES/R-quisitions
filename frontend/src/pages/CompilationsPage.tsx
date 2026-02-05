@@ -190,17 +190,33 @@ const CompilationsPage: React.FC = () => {
 
   const handleDownloadPdf = async (bordereau: Bordereau) => {
     try {
+      console.log('Début téléchargement PDF pour bordereau:', bordereau.id);
       const blob = await requisitionsAPI.downloadBordereauPdf(bordereau.id);
-      const url = window.URL.createObjectURL(new Blob([blob]));
+      
+      console.log('Blob reçu:', blob);
+      
+      // Vérifier si le blob est un JSON (erreur serveur)
+      if (blob.type === 'application/json') {
+          const text = await blob.text();
+          const errorData = JSON.parse(text);
+          console.error('Erreur reçue du backend:', errorData);
+          throw new Error(errorData.error || 'Erreur inconnue du serveur');
+      }
+
+      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `Bordereau_${bordereau.numero}.pdf`);
       document.body.appendChild(link);
       link.click();
       if (link.parentNode) link.parentNode.removeChild(link);
-    } catch (err) {
+      
+      // Nettoyage
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      
+    } catch (err: any) {
       console.error('Erreur téléchargement PDF:', err);
-      setError('Impossible de télécharger le PDF.');
+      setError(`Impossible de télécharger le PDF: ${err.message || 'Erreur inconnue'}`);
     }
   };
 
