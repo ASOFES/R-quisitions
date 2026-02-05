@@ -75,6 +75,8 @@ router.post('/', authenticateToken, requireRole(['compilateur', 'admin']), async
 // Obtenir la liste des bordereaux à aligner (Analyste)
 router.get('/a-aligner', authenticateToken, requireRole(['analyste', 'admin']), async (req, res) => {
     try {
+        console.log(`[GET /a-aligner] User: ${req.user.username}, Role: ${req.user.role}`);
+        
         // On cherche les bordereaux dont les réquisitions sont au niveau 'validation_bordereau'
         const bordereaux = await dbUtils.all(`
             SELECT DISTINCT b.*, u.nom_complet as createur_nom, 
@@ -87,6 +89,7 @@ router.get('/a-aligner', authenticateToken, requireRole(['analyste', 'admin']), 
             WHERE r_check.niveau = 'validation_bordereau'
             ORDER BY b.date_creation ASC
         `);
+        console.log(`[GET /a-aligner] Found ${bordereaux.length} bordereaux`);
         res.json(bordereaux);
     } catch (error) {
         console.error('Erreur récupération à aligner:', error);

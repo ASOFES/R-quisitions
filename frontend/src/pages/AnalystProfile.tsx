@@ -102,93 +102,109 @@ const AnalystProfile: React.FC = () => {
         return;
       }
 
-      // Récupérer les réquisitions depuis l'API du backend
+      // Initialize basic profile from user context
+      let userProfile: AnalystProfileData = {
+        id: user?.id || 0,
+        username: user?.username || 'analyste',
+        email: user?.email || '',
+        nom: 'Utilisateur',
+        prenom: 'Analyste',
+        telephone: '',
+        role: user?.role || 'analyste',
+        service_nom: 'Finance',
+        service_id: 0,
+        niveau: 'N2',
+        created_at: new Date().toISOString(),
+        last_login: new Date().toISOString(),
+        total_requisitions_analysees: 0,
+        requisitions_en_attente: 0,
+        requisitions_approuvees: 0,
+        requisitions_rejetees: 0,
+        montant_total_analyse: 0,
+        moyenne_montant: 0,
+        taux_validation: 0,
+      };
+
+      // 1. Fetch Requisitions (independently)
+      try {
         const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
         });
+        
+        if (response.ok) {
+          const allRequisitions = await response.json();
+          console.log('Réquisitions récupérées:', allRequisitions.length);
+          
+          // Filter and Calculate Stats
+          const requisitionsToAnalyse = allRequisitions.filter((req: any) => 
+            req.niveau === 'emetteur' || 
+            req.niveau === 'analyste' || 
+            req.niveau === 'challenger' ||
+            req.statut === 'refusee' || 
+            req.niveau === 'compilation'
+          );
+          
+          setRecentRequisitions(requisitionsToAnalyse.slice(0, 5));
 
-      if (response.ok) {
-        const allRequisitions = await response.json();
-        console.log('Réquisitions récupérées depuis le backend (analyste):', allRequisitions);
+          const analystStats = {
+            total_requisitions_analysees: requisitionsToAnalyse.length,
+            requisitions_en_attente: requisitionsToAnalyse.filter((r: any) => r.statut === 'soumise').length,
+            requisitions_approuvees: allRequisitions.filter((r: any) => r.statut === 'validee').length,
+            requisitions_rejetees: requisitionsToAnalyse.filter((r: any) => r.statut === 'refusee').length,
+            montant_total_analyse: requisitionsToAnalyse.reduce((sum: number, r: any) => {
+              const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
+              return sum + (isNaN(val) ? 0 : val);
+            }, 0),
+            moyenne_montant: requisitionsToAnalyse.length > 0 ? requisitionsToAnalyse.reduce((sum: number, r: any) => {
+              const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
+              return sum + (isNaN(val) ? 0 : val);
+            }, 0) / requisitionsToAnalyse.length : 0,
+            taux_validation: allRequisitions.length > 0 ? Math.round((allRequisitions.filter((r: any) => r.statut === 'validee').length / allRequisitions.length) * 100) : 0,
+          };
 
-        // Fetch requisitions to classify (payment mode)
+          // Update profile with stats
+          userProfile = {
+            ...userProfile,
+            ...analystStats,
+            service_nom: allRequisitions.length > 0 ? allRequisitions[0].service_nom : 'Finance',
+            service_id: allRequisitions.length > 0 ? allRequisitions[0].service_id : 0,
+          };
+        } else {
+            console.error('Erreur fetch requisitions:', response.status);
+        }
+      } catch (err) {
+          console.error('Exception fetch requisitions:', err);
+      }
+
+      // 2. Fetch Payments to Classify (independently)
+      try {
         const paymentResponse = await fetch(`${API_BASE_URL}/api/payments/a-classer`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
         });
         if (paymentResponse.ok) {
           const paymentData = await paymentResponse.json();
           setPaymentRequisitions(paymentData);
         }
-
-        // Fetch bordereaux to align
-        try {
-          const bordereaux = await requisitionsAPI.getBordereauxToAlign();
-          setBordereauxAAligner(bordereaux);
-        } catch (e) {
-          console.warn('Erreur chargement bordereaux:', e);
-        }
-        
-        // Filtrer les réquisitions qui nécessitent une analyse
-        const requisitionsToAnalyse = allRequisitions.filter((req: any) => 
-          req.niveau === 'emetteur' || // nouvelles réquisitions créées par les émetteurs
-          req.niveau === 'analyste' || 
-          req.niveau === 'challenger' ||
-          req.statut === 'refusee' || // Pour réanalyse
-          req.niveau === 'compilation' // Pour visibilité
-        );
-        
-        console.log('Réquisitions à analyser:', requisitionsToAnalyse);
-        
-        // Calculer les statistiques de l'analyste
-        const analystStats = {
-          total_requisitions_analysees: requisitionsToAnalyse.length,
-          requisitions_en_attente: requisitionsToAnalyse.filter((r: any) => r.statut === 'soumise').length,
-          requisitions_approuvees: allRequisitions.filter((r: any) => r.statut === 'validee').length,
-          requisitions_rejetees: requisitionsToAnalyse.filter((r: any) => r.statut === 'refusee').length,
-          // Fix: Ensure strict number parsing to avoid string concatenation
-          montant_total_analyse: requisitionsToAnalyse.reduce((sum: number, r: any) => {
-            const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
-            return sum + (isNaN(val) ? 0 : val);
-          }, 0),
-          moyenne_montant: requisitionsToAnalyse.length > 0 ? requisitionsToAnalyse.reduce((sum: number, r: any) => {
-            const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
-            return sum + (isNaN(val) ? 0 : val);
-          }, 0) / requisitionsToAnalyse.length : 0,
-          taux_validation: allRequisitions.length > 0 ? Math.round((allRequisitions.filter((r: any) => r.statut === 'validee').length / allRequisitions.length) * 100) : 0,
-        };
-
-        // Créer le profil analyste
-        const userProfile: AnalystProfileData = {
-          id: user?.id || 3,
-          username: user?.username || 'analyste',
-          email: user?.email || 'analyste@entreprise.com',
-          nom: 'Comptable',
-          prenom: 'Analyste',
-          telephone: '+243 123 456 789',
-          role: user?.role || 'analyste',
-          service_nom: allRequisitions.length > 0 ? allRequisitions[0].service_nom : 'Finance',
-          service_id: allRequisitions.length > 0 ? allRequisitions[0].service_id : 2,
-          niveau: 'N2',
-          created_at: new Date().toISOString(),
-          last_login: new Date().toISOString(),
-          ...analystStats,
-        };
-
-        setProfile(userProfile);
-        setRecentRequisitions(requisitionsToAnalyse.slice(0, 5)); // 5 réquisitions les plus récentes
-        setLoading(false);
-      } else {
-        console.error('Erreur lors de la récupération des réquisitions:', response.status);
-        setLoading(false);
+      } catch (err) {
+          console.error('Exception fetch payments:', err);
       }
+
+      // 3. Fetch Bordereaux to Align (independently)
+      try {
+        console.log('Fetching bordereaux to align...');
+        const bordereaux = await requisitionsAPI.getBordereauxToAlign();
+        console.log('Bordereaux to align fetched:', bordereaux);
+        setBordereauxAAligner(bordereaux);
+      } catch (e) {
+        console.error('Erreur chargement bordereaux:', e);
+      }
+
+      // Finalize Profile
+      setProfile(userProfile);
+      setLoading(false);
+
     } catch (error) {
-      console.error('Erreur lors du chargement des données:', error);
+      console.error('Erreur globale chargement données:', error);
       setLoading(false);
     }
   }, [user]);
