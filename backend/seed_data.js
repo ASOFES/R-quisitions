@@ -59,6 +59,7 @@ async function seedData() {
             { username: 'toto', role: 'admin', service: null },
             { username: 'admin', role: 'admin', service: null },
             { username: 'edla.m', role: 'emetteur', service: rhService },
+            { username: 'chef.rh', role: 'emetteur', service: rhService }, // Chef de service RH
             { username: 'analyste', role: 'analyste', service: finService },
             { username: 'validateur', role: 'validateur', service: itService },
             { username: 'comptable', role: 'comptable', service: finService },
@@ -85,13 +86,20 @@ async function seedData() {
                 );
                 console.log(`✅ Utilisateur ${user.username} ajouté.`);
             } else {
-                // Mise à jour de l'activation et du rôle (pour corriger d'éventuelles erreurs de casse)
+                // Mise à jour de l'activation et du rôle
                 await dbUtils.run(
                     'UPDATE users SET actif = TRUE, role = ? WHERE id = ?',
                     [user.role, existing.id]
                 );
-                console.log(`🔄 Utilisateur ${user.username} vérifié et mis à jour (actif = TRUE, role = ${user.role}).`);
+                console.log(`🔄 Utilisateur ${user.username} vérifié et mis à jour.`);
             }
+        }
+
+        // 4. Assign Chef to Service (RH)
+        const chefUser = await dbUtils.get('SELECT id FROM users WHERE username = ?', ['chef.rh']);
+        if (chefUser && rhService) {
+            await dbUtils.run('UPDATE services SET chef_id = ? WHERE id = ?', [chefUser.id, rhService.id]);
+            console.log(`✅ Chef.rh assigné au service RH.`);
         }
 
         console.log('🏁 Peuplement terminé avec succès.');
