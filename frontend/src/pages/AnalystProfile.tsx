@@ -46,6 +46,8 @@ import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { Requisition } from '../services/RequisitionService';
+import { requisitionsAPI, Bordereau } from '../services/api';
+import { FactCheck } from '@mui/icons-material';
 
 interface AnalystProfileData {
   id: number;
@@ -76,6 +78,10 @@ const AnalystProfile: React.FC = () => {
   const [profile, setProfile] = useState<AnalystProfileData | null>(null);
   const [recentRequisitions, setRecentRequisitions] = useState<Requisition[]>([]);
   const [paymentRequisitions, setPaymentRequisitions] = useState<any[]>([]);
+  const [bordereauxAAligner, setBordereauxAAligner] = useState<Bordereau[]>([]);
+  const [alignDialogOpen, setAlignDialogOpen] = useState(false);
+  const [selectedBordereauId, setSelectedBordereauId] = useState<number | null>(null);
+  const [paymentMode, setPaymentMode] = useState('Cash');
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState<Partial<AnalystProfileData>>({});
@@ -118,6 +124,14 @@ const AnalystProfile: React.FC = () => {
         if (paymentResponse.ok) {
           const paymentData = await paymentResponse.json();
           setPaymentRequisitions(paymentData);
+        }
+
+        // Fetch bordereaux to align
+        try {
+          const bordereaux = await requisitionsAPI.getBordereauxToAlign();
+          setBordereauxAAligner(bordereaux);
+        } catch (e) {
+          console.warn('Erreur chargement bordereaux:', e);
         }
         
         // Filtrer les réquisitions qui nécessitent une analyse
@@ -238,6 +252,31 @@ const AnalystProfile: React.FC = () => {
     }
   };
 
+  const handleAligner = (bordereauId: number) => {
+    setSelectedBordereauId(bordereauId);
+    setPaymentMode('Cash');
+    setAlignDialogOpen(true);
+  };
+
+  const confirmAlignment = async () => {
+    if (!selectedBordereauId) return;
+    try {
+        await requisitionsAPI.alignBordereau(selectedBordereauId, paymentMode);
+        setAlignDialogOpen(false);
+        setSelectedBordereauId(null);
+        setShowSuccess(true);
+        loadProfileData(); // Reload data
+    } catch (error) {
+        console.error('Erreur alignement:', error);
+        alert('Erreur lors de l\'alignement du bordereau');
+    }
+  };
+
+  const formatCurrency = (amount?: number, currency: string = 'USD') => {
+    if (amount === undefined || amount === null) return '-';
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(amount);
+  };
+
   const getStatutColor = (statut: string) => {
     switch (statut) {
       case 'brouillon': return '#9e9e9e';
@@ -308,7 +347,36 @@ const AnalystProfile: React.FC = () => {
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
           <CircularProgress />
         </Box>
-      </Container>
+        {/* Dialog Alignement avec Mode de Paiement */}
+      <Dialog open={alignDialogOpen} onClose={() => setAlignDialogOpen(false)}>
+        <DialogTitle>Aligner le bordereau</DialogTitle>
+        <DialogContent sx={{ minWidth: 400, mt: 1 }}>
+          <Typography gutterBottom>
+            Veuillez sélectionner le mode de paiement pour ce bordereau.
+            Les réquisitions seront envoyées au Comptable pour paiement.
+          </Typography>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>Mode de Paiement</InputLabel>
+            <Select
+              value={paymentMode}
+              label="Mode de Paiement"
+              onChange={(e) => setPaymentMode(e.target.value)}
+            >
+              <MenuItem value="Cash">Cash</MenuItem>
+              <MenuItem value="Banque">Banque</MenuItem>
+              <MenuItem value="Mobile Money">Mobile Money</MenuItem>
+              <MenuItem value="Cheque">Chèque</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAlignDialogOpen(false)}>Annuler</Button>
+          <Button onClick={confirmAlignment} variant="contained" color="secondary" autoFocus>
+            Confirmer l'Alignement
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
     );
   }
 
@@ -529,6 +597,57 @@ const AnalystProfile: React.FC = () => {
               </CardContent>
             </Card>
           )}
+
+          {/* Bordereaux à Aligner (Workflow Standard) */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                <FactCheck sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Bordereaux en attente d'alignement
+              </Typography>
+              {bordereauxAAligner.length === 0 ? (
+                 <Alert severity="info">Aucun bordereau en attente d'alignement.</Alert>
+              ) : (
+                <Box sx={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', borderBottom: '1px solid #eee' }}>
+                        <th style={{ padding: '8px' }}>Numéro</th>
+                        <th style={{ padding: '8px' }}>Date</th>
+                        <th style={{ padding: '8px' }}>Créateur</th>
+                        <th style={{ padding: '8px', textAlign: 'center' }}>Réquisitions</th>
+                        <th style={{ padding: '8px', textAlign: 'right' }}>Total USD</th>
+                        <th style={{ padding: '8px', textAlign: 'right' }}>Total CDF</th>
+                        <th style={{ padding: '8px', textAlign: 'center' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bordereauxAAligner.map((bord) => (
+                        <tr key={bord.id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '8px' }}>{bord.numero}</td>
+                          <td style={{ padding: '8px' }}>{new Date(bord.date_creation).toLocaleDateString()}</td>
+                          <td style={{ padding: '8px' }}>{bord.createur_nom}</td>
+                          <td style={{ padding: '8px', textAlign: 'center' }}>{bord.nb_requisitions}</td>
+                          <td style={{ padding: '8px', textAlign: 'right' }}>{formatCurrency(bord.total_usd, 'USD')}</td>
+                          <td style={{ padding: '8px', textAlign: 'right' }}>{formatCurrency(bord.total_cdf, 'CDF')}</td>
+                          <td style={{ padding: '8px', textAlign: 'center' }}>
+                            <Button 
+                                variant="contained" 
+                                color="secondary" 
+                                size="small"
+                                onClick={() => handleAligner(bord.id)}
+                            >
+                                Aligner (Paiement)
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Réquisitions à classer (Paiement) */}
           <Card sx={{ mb: 3 }}>
