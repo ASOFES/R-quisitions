@@ -155,8 +155,7 @@ router.get('/', authenticateToken, requireRole(['compilateur', 'admin', 'comptab
     }
 });
 
-const PdfService = require('../services/PdfService');
-const pdfService = new PdfService();
+const pdfService = require('../services/PdfService');
 
 // Générer PDF du bordereau
 router.get('/:id/pdf', authenticateToken, async (req, res) => {
