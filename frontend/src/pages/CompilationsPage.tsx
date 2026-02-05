@@ -205,8 +205,12 @@ const CompilationsPage: React.FC = () => {
           return;
       }
 
+      const pdfUrl = `${API_BASE_URL}/api/compilations/${bordereau.id}/pdf`;
+      console.log('Tentative de téléchargement PDF:', pdfUrl);
+      console.log('Token disponible:', token ? 'OUI' : 'NON');
+
       // Utiliser API_BASE_URL centralisé pour la consistance
-      const response = await fetch(`${API_BASE_URL}/api/compilations/${bordereau.id}/pdf`, {
+      const response = await fetch(pdfUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -214,8 +218,12 @@ const CompilationsPage: React.FC = () => {
         }
       });
 
+      console.log('Réponse PDF:', response.status, response.statusText);
+
       if (response.ok) {
         const blob = await response.blob();
+        console.log('Blob PDF créé, taille:', blob.size, 'bytes');
+        
         const url = window.URL.createObjectURL(blob);
         
         // Créer un lien temporaire pour le téléchargement
@@ -233,10 +241,13 @@ const CompilationsPage: React.FC = () => {
         console.log('PDF généré avec succès pour bordereau:', bordereau.numero);
       } else {
         console.error('Erreur réponse PDF:', response.status, response.statusText);
-        setError(`Erreur serveur: ${response.status} - Impossible de générer le PDF`);
+        const errorText = await response.text();
+        console.error('Détail erreur:', errorText);
+        setError(`Erreur serveur: ${response.status} - ${response.statusText}`);
         
         // Fallback: essayer l'ouverture directe
         const fallbackUrl = `${API_BASE_URL}/api/compilations/${bordereau.id}/pdf?token=${token}`;
+        console.log('Fallback URL:', fallbackUrl);
         window.open(fallbackUrl, '_blank');
       }
       
