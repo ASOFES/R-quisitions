@@ -159,14 +159,21 @@ const CompilationsPage: React.FC = () => {
   };
 
   const handleCreateBordereau = async () => {
+    if (selectedIds.length === 0) {
+        setConfirmOpen(false);
+        setError('Aucune réquisition sélectionnée.');
+        return;
+    }
     try {
       await requisitionsAPI.createBordereau(selectedIds);
       setConfirmOpen(false);
       setSelectedIds([]);
       fetchData(); // Rafraîchir
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erreur création bordereau:', err);
-      setError('Erreur lors de la création du bordereau.');
+      // Afficher le message d'erreur du backend si disponible
+      const msg = err.response?.data?.error || 'Erreur lors de la création du bordereau.';
+      setError(msg);
     }
   };
 
@@ -306,7 +313,9 @@ const CompilationsPage: React.FC = () => {
                 <Button
                 variant="outlined"
                 color="secondary"
+                disabled={filteredRequisitions.length === 0}
                 onClick={() => {
+                    if (filteredRequisitions.length === 0) return;
                     setSelectedIds(filteredRequisitions.map((r) => r.id));
                     setConfirmOpen(true);
                 }}
