@@ -240,12 +240,10 @@ const Login: React.FC = () => {
               {Object.entries({
                 admin: { name: 'Administrateur', desc: 'Gestion complète' },
                 'edla.m': { name: 'Initiateur', desc: 'Crée les demandes' },
-                'chef.rh': { name: 'Chef de Service', desc: 'Approbation Chef' },
                 'analyste.compta': { name: 'Analyste', desc: 'Validation Niv 1' },
-                'compilateur': { name: 'Compilateur', desc: 'Prépare les paiements' },
                 'pm.user': { name: 'Challenger', desc: 'Validation Niv 2' },
                 'gm.user': { name: 'Validateur', desc: 'Validation Finale' },
-                comptable: { name: 'Comptable', desc: 'Paiements' },
+                'chef.rh': { name: 'Chef de Service', desc: 'Approbation Chef' },
               }).map(([userKey, info]) => (
                 <Card 
                   key={userKey} 
