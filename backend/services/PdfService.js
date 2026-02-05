@@ -154,7 +154,7 @@ class PdfService {
             y -= 50;
 
             // --- INFO GRID ---
-            const infoBoxHeight = 100;
+            const infoBoxHeight = 120;
             page.drawRectangle({
                 x: margin,
                 y: y - infoBoxHeight,
@@ -167,39 +167,57 @@ class PdfService {
 
             // Grid Helpers
             const drawInfo = (label, value, colX, rowY) => {
-                page.drawText(label, { x: colX, y: rowY, size: 9, font: boldFont, color: rgb(0.5, 0.5, 0.5) });
-                page.drawText(safeText(value) || '-', { x: colX, y: rowY - 14, size: 11, font: font, color: colors.text });
+                page.drawText(label, { x: colX, y: rowY, size: 8, font: boldFont, color: rgb(0.4, 0.4, 0.4) });
+                page.drawText(safeText(value) || '-', { x: colX, y: rowY - 12, size: 10, font: font, color: colors.text });
             };
 
-            const col1 = margin + 15;
-            const col2 = margin + 230; // Décalé vers la droite pour laisser plus de place à l'Objet (était 180)
-            const col3 = margin + 390; // Décalé vers la droite (était 350)
+            // Draw grid lines for better readability
+            const drawGridLine = (startX, endX, yPos) => {
+                page.drawLine({ start: { x: startX, y: yPos }, end: { x: endX, y: yPos }, thickness: 0.5, color: colors.border });
+            };
+
+            const col1 = margin + 10;
+            const col2 = margin + 180;
+            const col3 = margin + 350;
             
-            let rowY = y - 25;
+            let rowY = y - 20;
             
-            // Row 1
-            drawInfo('DATE', new Date(req.created_at).toLocaleDateString(), col1, rowY);
+            // Header row
+            drawInfo('DATE', new Date(req.created_at).toLocaleDateString('fr-FR'), col1, rowY);
             drawInfo('ÉMETTEUR', req.emetteur_nom, col2, rowY);
             drawInfo('SERVICE', req.service_nom || req.service_code, col3, rowY);
+            drawGridLine(margin, width - margin, rowY - 15);
 
-            rowY -= 35;
+            rowY -= 30;
 
-            // Row 1.5 - Emetteur Details
-            drawInfo('EMAIL', req.emetteur_email, col1, rowY);
-            drawInfo('RÔLE', req.emetteur_role, col2, rowY);
-            drawInfo('ZONE', req.emetteur_zone, col3, rowY);
+            // Second row
+            drawInfo('EMAIL', req.emetteur_email || '-', col1, rowY);
+            drawInfo('RÔLE', req.emetteur_role || '-', col2, rowY);
+            drawInfo('ZONE', req.emetteur_zone || '-', col3, rowY);
+            drawGridLine(margin, width - margin, rowY - 15);
 
-            rowY -= 35;
+            rowY -= 30;
 
-            // Row 2
-            drawInfo('OBJET', req.objet, col1, rowY);
-            
-            // Money (Highlighted)
-            page.drawText('MONTANT USD', { x: col2, y: rowY, size: 9, font: boldFont, color: rgb(0.5, 0.5, 0.5) });
-            page.drawText(`${req.montant_usd || 0} $`, { x: col2, y: rowY - 14, size: 12, font: boldFont, color: colors.primary });
+            // Third row - OBJET spans full width
+            page.drawText('OBJET', { x: col1, y: rowY, size: 8, font: boldFont, color: rgb(0.4, 0.4, 0.4) });
+            const objetText = safeText(req.objet || '-');
+            if (font.widthOfTextAtSize(objetText, 10) > (contentWidth - 20)) {
+                // Wrap text if too long
+                const wrappedObjet = drawWrappedText(objetText, col1, rowY - 12, 10, font, contentWidth - 20);
+                rowY = wrappedObjet;
+            } else {
+                page.drawText(objetText, { x: col1, y: rowY - 12, size: 10, font: font, color: colors.text });
+            }
+            drawGridLine(margin, width - margin, rowY - 15);
 
-            page.drawText('MONTANT CDF', { x: col3, y: rowY, size: 9, font: boldFont, color: rgb(0.5, 0.5, 0.5) });
-            page.drawText(`${req.montant_cdf || 0} FC`, { x: col3, y: rowY - 14, size: 12, font: boldFont, color: colors.primary });
+            rowY -= 30;
+
+            // Money row
+            page.drawText('MONTANT USD', { x: col1, y: rowY, size: 8, font: boldFont, color: rgb(0.4, 0.4, 0.4) });
+            page.drawText(`${(req.montant_usd || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $US`, { x: col1, y: rowY - 12, size: 11, font: boldFont, color: colors.primary });
+
+            page.drawText('MONTANT CDF', { x: col2, y: rowY, size: 8, font: boldFont, color: rgb(0.4, 0.4, 0.4) });
+            page.drawText(`${(req.montant_cdf || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} FC`, { x: col2, y: rowY - 12, size: 11, font: boldFont, color: colors.primary });
 
             y -= (infoBoxHeight + 30);
 
@@ -225,54 +243,74 @@ class PdfService {
                 page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: colors.border });
                 y -= 20;
 
-                // Table Header
-                page.drawRectangle({ x: margin, y: y - 20, width: contentWidth, height: 20, color: rgb(0.9, 0.9, 0.9) });
+                // Table Header with better styling
+                page.drawRectangle({ x: margin, y: y - 25, width: contentWidth, height: 25, color: rgb(0.95, 0.95, 0.95) });
+                page.drawLine({ start: { x: margin, y: y - 25 }, end: { x: width - margin, y: y - 25 }, thickness: 1, color: colors.border });
                 
-                const colDesc = margin + 5;
-                const colQty = margin + 250;
-                const colPrice = margin + 320;
-                const colTotal = margin + 400;
+                const colDesc = margin + 8;
+                const colQty = margin + 280;
+                const colPrice = margin + 360;
+                const colTotal = margin + 440;
 
-                page.drawText('DESCRIPTION', { x: colDesc, y: y - 14, size: 9, font: boldFont });
-                page.drawText('QUANTITÉ', { x: colQty, y: y - 14, size: 9, font: boldFont });
-                page.drawText('P. UNITAIRE', { x: colPrice, y: y - 14, size: 9, font: boldFont });
-                page.drawText('TOTAL', { x: colTotal, y: y - 14, size: 9, font: boldFont });
+                page.drawText('DESCRIPTION', { x: colDesc, y: y - 17, size: 10, font: boldFont, color: colors.primary });
+                page.drawText('QUANTITÉ', { x: colQty, y: y - 17, size: 10, font: boldFont, color: colors.primary });
+                page.drawText('P. UNITAIRE', { x: colPrice, y: y - 17, size: 10, font: boldFont, color: colors.primary });
+                page.drawText('TOTAL', { x: colTotal, y: y - 17, size: 10, font: boldFont, color: colors.primary });
                 
-                y -= 30;
+                // Vertical lines for table
+                page.drawLine({ start: { x: colQty - 5, y: y - 25 }, end: { x: colQty - 5, y: y - 5 }, thickness: 0.5, color: colors.border });
+                page.drawLine({ start: { x: colPrice - 5, y: y - 25 }, end: { x: colPrice - 5, y: y - 5 }, thickness: 0.5, color: colors.border });
+                page.drawLine({ start: { x: colTotal - 5, y: y - 25 }, end: { x: colTotal - 5, y: y - 5 }, thickness: 0.5, color: colors.border });
+                
+                y -= 35;
 
+                let totalAmount = 0;
                 for (const item of items) {
-                    y = checkPageBreak(y, 30);
+                    y = checkPageBreak(y, 35);
 
-                    // Description wrap
-                    const descWidth = colQty - colDesc - 10;
-                    
-                    // Simple wrap logic for description
-                    const descWords = safeText(item.description).split(' ');
-                    let descLine = '';
-                    let descY = y;
-                    for(const w of descWords) {
-                        if (font.widthOfTextAtSize(descLine + w, 9) > descWidth) {
-                            page.drawText(descLine, { x: colDesc, y: descY, size: 9, font, color: colors.text });
-                            descY -= 11;
-                            descLine = '';
-                        }
-                        descLine += w + ' ';
+                    // Row background alternating
+                    if ((items.indexOf(item) % 2) === 0) {
+                        page.drawRectangle({ x: margin, y: y - 20, width: contentWidth, height: 20, color: rgb(0.98, 0.98, 0.98) });
                     }
-                    page.drawText(descLine, { x: colDesc, y: descY, size: 9, font, color: colors.text });
+
+                    // Description with better wrapping
+                    const descWidth = colQty - colDesc - 15;
+                    const descText = safeText(item.description);
+                    const descY = drawWrappedText(descText, colDesc, y - 5, 9, font, descWidth);
                     
-                    // Numeric values
-                    page.drawText(String(item.quantite), { x: colQty, y, size: 9, font, color: colors.text });
-                    page.drawText(String(item.prix_unitaire), { x: colPrice, y, size: 9, font, color: colors.text });
-                    page.drawText(String(item.prix_total), { x: colTotal, y, size: 9, font, color: colors.text });
+                    // Format numeric values
+                    const qty = Number(item.quantite) || 0;
+                    const price = Number(item.prix_unitaire) || 0;
+                    const total = Number(item.prix_total) || 0;
+                    totalAmount += total;
+                    
+                    // Right-align numeric values
+                    const qtyText = qty.toLocaleString('fr-FR');
+                    const priceText = `${price.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $`;
+                    const totalText = `${total.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $`;
+                    
+                    page.drawText(qtyText, { x: colQty - 5 - font.widthOfTextAtSize(qtyText, 9), y: y - 12, size: 9, font: font, color: colors.text });
+                    page.drawText(priceText, { x: colPrice - 5 - font.widthOfTextAtSize(priceText, 9), y: y - 12, size: 9, font: font, color: colors.text });
+                    page.drawText(totalText, { x: colTotal - 5 - font.widthOfTextAtSize(totalText, 9), y: y - 12, size: 9, font: boldFont, color: colors.primary });
 
                     // Update main Y based on description height
-                    y = Math.min(y, descY);
-                    y -= 10; // Row spacing
+                    y = Math.min(y - 20, descY - 15);
                     
-                    // Light separator line
-                    page.drawLine({ start: { x: margin, y: y + 5 }, end: { x: width - margin, y: y + 5 }, thickness: 0.5, color: colors.border });
-                    y -= 10;
+                    // Row separator
+                    page.drawLine({ start: { x: margin, y: y }, end: { x: width - margin, y: y }, thickness: 0.3, color: colors.border });
+                    y -= 5;
                 }
+
+                // Total row
+                y = checkPageBreak(y, 30);
+                page.drawRectangle({ x: margin, y: y - 25, width: contentWidth, height: 25, color: rgb(0.9, 0.95, 0.9) });
+                page.drawLine({ start: { x: margin, y: y - 25 }, end: { x: width - margin, y: y - 25 }, thickness: 1, color: colors.primary });
+                
+                page.drawText('TOTAL GÉNÉRAL:', { x: colDesc, y: y - 17, size: 11, font: boldFont, color: colors.primary });
+                const totalText = `${totalAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $`;
+                page.drawText(totalText, { x: colTotal - 5 - font.widthOfTextAtSize(totalText, 11), y: y - 17, size: 11, font: boldFont, color: colors.primary });
+                
+                y -= 35;
                 y -= 20;
             }
 
@@ -293,62 +331,67 @@ class PdfService {
                 page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: colors.border });
                 y -= 20;
 
-                // Table Header
-                const tableHeadY = y;
-                page.drawRectangle({ x: margin, y: y - 20, width: contentWidth, height: 20, color: rgb(0.9, 0.9, 0.9) });
+                // Table Header with better styling
+                page.drawRectangle({ x: margin, y: y - 25, width: contentWidth, height: 25, color: rgb(0.95, 0.95, 0.95) });
+                page.drawLine({ start: { x: margin, y: y - 25 }, end: { x: width - margin, y: y - 25 }, thickness: 1, color: colors.border });
                 
-                const colDate = margin + 5;
-                const colAction = margin + 110;
-                const colUser = margin + 200;
-                const colNote = margin + 350;
+                const colDate = margin + 8;
+                const colAction = margin + 130;
+                const colUser = margin + 240;
+                const colNote = margin + 380;
 
-                page.drawText('DATE', { x: colDate, y: y - 14, size: 9, font: boldFont });
-                page.drawText('ACTION', { x: colAction, y: y - 14, size: 9, font: boldFont });
-                page.drawText('INTERVENANT', { x: colUser, y: y - 14, size: 9, font: boldFont });
-                page.drawText('NOTE', { x: colNote, y: y - 14, size: 9, font: boldFont });
+                page.drawText('DATE', { x: colDate, y: y - 17, size: 10, font: boldFont, color: colors.primary });
+                page.drawText('ACTION', { x: colAction, y: y - 17, size: 10, font: boldFont, color: colors.primary });
+                page.drawText('INTERVENANT', { x: colUser, y: y - 17, size: 10, font: boldFont, color: colors.primary });
+                page.drawText('NOTE', { x: colNote, y: y - 17, size: 10, font: boldFont, color: colors.primary });
                 
-                y -= 30;
+                // Vertical lines for table
+                page.drawLine({ start: { x: colAction - 5, y: y - 25 }, end: { x: colAction - 5, y: y - 5 }, thickness: 0.5, color: colors.border });
+                page.drawLine({ start: { x: colUser - 5, y: y - 25 }, end: { x: colUser - 5, y: y - 5 }, thickness: 0.5, color: colors.border });
+                page.drawLine({ start: { x: colNote - 5, y: y - 25 }, end: { x: colNote - 5, y: y - 5 }, thickness: 0.5, color: colors.border });
+                
+                y -= 35;
 
                 for (const action of actions) {
-                    y = checkPageBreak(y, 30);
+                    y = checkPageBreak(y, 40);
 
-                    const dateStr = new Date(action.created_at).toLocaleDateString() + ' ' + new Date(action.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    
-                    page.drawText(dateStr, { x: colDate, y, size: 9, font });
-                    page.drawText(action.action.toUpperCase(), { x: colAction, y, size: 9, font: boldFont, color: colors.primary });
-                    
-                    // Wrap User Name if too long
-                    const userText = safeText(`${action.utilisateur_nom || 'Inconnu'} (${action.utilisateur_role || '-'})`);
-                    // Simplified wrap for user col (width approx 140)
-                    // ... avoiding complex wrap for now, just truncate if needed or let it overflow slightly
-                    page.drawText(userText, { x: colUser, y, size: 9, font });
-
-                    // Note
-                    if (action.commentaire) {
-                        // Simple wrap for note
-                        const noteWords = safeText(action.commentaire).split(' ');
-                        let noteLine = '';
-                        let noteY = y;
-                        for(const w of noteWords) {
-                            if (font.widthOfTextAtSize(noteLine + w, 9) > (width - margin - colNote)) {
-                                page.drawText(noteLine, { x: colNote, y: noteY, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
-                                noteY -= 11;
-                                noteLine = '';
-                            }
-                            noteLine += w + ' ';
-                        }
-                        page.drawText(noteLine, { x: colNote, y: noteY, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
-                        
-                        // Update main Y based on note height
-                        y = Math.min(y, noteY);
-                    } else {
-                        page.drawText('-', { x: colNote, y, size: 9, font, color: rgb(0.6, 0.6, 0.6) });
+                    // Row background alternating
+                    if ((actions.indexOf(action) % 2) === 0) {
+                        page.drawRectangle({ x: margin, y: y - 25, width: contentWidth, height: 25, color: rgb(0.98, 0.98, 0.98) });
                     }
 
-                    y -= 20; // Row spacing
+                    // Format date properly
+                    const date = new Date(action.created_at);
+                    const dateStr = date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
                     
-                    // Light separator line
-                    page.drawLine({ start: { x: margin, y: y + 10 }, end: { x: width - margin, y: y + 10 }, thickness: 0.5, color: colors.border });
+                    page.drawText(dateStr, { x: colDate, y: y - 15, size: 9, font: font, color: colors.text });
+                    
+                    // Action with color coding
+                    const actionText = action.action.toUpperCase();
+                    let actionColor = colors.text;
+                    if (actionText === 'VALIDER') actionColor = rgb(0.2, 0.6, 0.2);
+                    else if (actionText === 'REFUSER') actionColor = rgb(0.8, 0.2, 0.2);
+                    else if (actionText === 'MODIFIER') actionColor = rgb(0.8, 0.6, 0.2);
+                    
+                    page.drawText(actionText, { x: colAction, y: y - 15, size: 9, font: boldFont, color: actionColor });
+                    
+                    // User info
+                    const userText = safeText(`${action.utilisateur_nom || 'Inconnu'} (${action.utilisateur_role || '-'})`);
+                    const userY = drawWrappedText(userText, colUser, y - 15, 9, font, colNote - colUser - 15);
+
+                    // Note with wrapping
+                    if (action.commentaire) {
+                        const noteText = safeText(action.commentaire);
+                        const noteY = drawWrappedText(noteText, colNote, y - 15, 9, font, width - margin - colNote - 10);
+                        y = Math.min(y - 25, userY - 10, noteY - 10);
+                    } else {
+                        page.drawText('-', { x: colNote, y: y - 15, size: 9, font: font, color: rgb(0.6, 0.6, 0.6) });
+                        y = Math.min(y - 25, userY - 10);
+                    }
+                    
+                    // Row separator
+                    page.drawLine({ start: { x: margin, y: y }, end: { x: width - margin, y: y }, thickness: 0.3, color: colors.border });
+                    y -= 5;
                 }
                 y -= 20;
             }
