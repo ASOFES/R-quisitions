@@ -197,7 +197,9 @@ const CompilationsPage: React.FC = () => {
 
   const handleDownloadPdf = async (bordereau: Bordereau) => {
     try {
+      // Feedback immédiat
       console.log('Début téléchargement PDF pour bordereau:', bordereau.id);
+      
       const blob = await requisitionsAPI.downloadBordereauPdf(bordereau.id);
       
       console.log('Blob reçu:', blob);
@@ -223,7 +225,9 @@ const CompilationsPage: React.FC = () => {
       
     } catch (err: any) {
       console.error('Erreur téléchargement PDF:', err);
-      setError(`Impossible de télécharger le PDF: ${err.message || 'Erreur inconnue'}`);
+      const errMsg = err.message || 'Erreur inconnue';
+      setError(`Impossible de télécharger le PDF: ${errMsg}`);
+      alert(`Erreur: ${errMsg}`); // Ajout d'une alerte visible
     }
   };
 
