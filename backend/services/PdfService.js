@@ -72,7 +72,24 @@ class PdfService {
             const checkPageBreak = (currentY, neededSpace = 50) => {
                 if (currentY < neededSpace) {
                     page = mergedPdf.addPage();
-                    return height - 50;
+                    
+                    // En-tête simplifié pour les pages suivantes
+                    page.drawRectangle({
+                        x: 0,
+                        y: height - 50,
+                        width: width,
+                        height: 50,
+                        color: colors.primary
+                    });
+                    page.drawText(`Suite - Demande N° ${req.numero}`, {
+                        x: margin,
+                        y: height - 32,
+                        size: 12,
+                        font: boldFont,
+                        color: colors.white
+                    });
+
+                    return height - 80;
                 }
                 return currentY;
             };
@@ -112,10 +129,10 @@ class PdfService {
 
             // 1. Logo (Left, inside blue bar)
             if (logoImage) {
-                const logoDims = logoImage.scaleToFit(120, 70);
+                const logoDims = logoImage.scaleToFit(150, 80);
                 page.drawImage(logoImage, {
                     x: margin,
-                    y: height - 80,
+                    y: height - 85,
                     width: logoDims.width,
                     height: logoDims.height,
                 });
@@ -168,7 +185,7 @@ class PdfService {
                 width: contentWidth,
                 height: infoBoxHeight,
                 color: colors.secondary,
-                borderColor: colors.border,
+                borderColor: colors.primary,
                 borderWidth: 1
             });
 
@@ -420,16 +437,29 @@ class PdfService {
             }
         }
 
-        // --- GLOBAL PAGINATION ---
+        // --- GLOBAL PAGINATION & FOOTER ---
         const pages = mergedPdf.getPages();
         const totalPages = pages.length;
+        const generationDate = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        
         for (let i = 0; i < totalPages; i++) {
             const p = pages[i];
             const { width } = p.getSize();
+            
+            // Pagination (Right)
             p.drawText(`Page ${i + 1} / ${totalPages}`, {
                 x: width - 80,
-                y: 20,
+                y: 15,
                 size: 9,
+                font: font,
+                color: colors.grayText,
+            });
+
+            // Footer Text (Center/Left)
+            p.drawText(`Généré par Requisitions App le ${generationDate}`, {
+                x: margin,
+                y: 15,
+                size: 8,
                 font: font,
                 color: colors.grayText,
             });
