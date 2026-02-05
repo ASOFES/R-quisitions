@@ -1,6 +1,7 @@
-const { dbUtils } = require('../database/database');
+const { dbUtils, dbReady } = require('../database/database');
 
 async function main() {
+  await dbReady;
   const tables = [
     'requisitions',
     'lignes_requisition',

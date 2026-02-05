@@ -79,7 +79,7 @@ const checkRequisitionAccess = async (req, res, next) => {
 
     // Vérifier le niveau pour les autres rôles
     // On permet la lecture à tous les acteurs du workflow pour la transparence
-    const allowedRoles = ['analyste', 'challenger', 'validateur', 'pm', 'gm', 'comptable'];
+    const allowedRoles = ['analyste', 'challenger', 'validateur', 'pm', 'gm', 'comptable', 'compilateur'];
     if (allowedRoles.includes(user.role)) {
        // Accès autorisé en lecture pour le workflow
     } else {

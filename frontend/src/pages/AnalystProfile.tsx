@@ -125,7 +125,8 @@ const AnalystProfile: React.FC = () => {
           req.niveau === 'emetteur' || // nouvelles réquisitions créées par les émetteurs
           req.niveau === 'analyste' || 
           req.niveau === 'challenger' ||
-          req.statut === 'refusee' // Pour réanalyse
+          req.statut === 'refusee' || // Pour réanalyse
+          req.niveau === 'compilation' // Pour visibilité
         );
         
         console.log('Réquisitions à analyser:', requisitionsToAnalyse);

@@ -1,10 +1,13 @@
 const path = require('path');
 const fs = require('fs');
-const { dbUtils } = require('../database/database');
+const { dbUtils, dbReady } = require('../database/database');
 
 async function cleanupDatabase() {
   console.log('--- Nettoyage de la base de données (hors utilisateurs) ---');
   try {
+    console.log('Attente de la connexion base de données...');
+    await dbReady;
+    
     await dbUtils.run('BEGIN TRANSACTION');
 
     // Supprimer les pièces jointes physiques
@@ -42,7 +45,7 @@ async function cleanupDatabase() {
     }
 
     // Réinitialiser les fonds aux valeurs initiales
-    await dbUtils.run('UPDATE fonds SET montant_disponible = CASE WHEN devise = "USD" THEN 10000.00 WHEN devise = "CDF" THEN 25000000.00 ELSE 0 END');
+    await dbUtils.run("UPDATE fonds SET montant_disponible = CASE WHEN devise = 'USD' THEN 10000.00 WHEN devise = 'CDF' THEN 25000000.00 ELSE 0 END");
 
     await dbUtils.run('COMMIT');
     console.log('Nettoyage terminé avec succès.');

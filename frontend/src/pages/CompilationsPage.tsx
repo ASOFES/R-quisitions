@@ -82,21 +82,35 @@ const CompilationsPage: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Parallel requests would be better but let's keep it simple
-      const reqs = await requisitionsAPI.getRequisitionsToCompile();
-      const bords = await requisitionsAPI.getBordereaux();
-      
-      setRequisitions(reqs);
-      setBordereaux(bords);
-
-      // Si analyste ou admin, on charge aussi les bordereaux à aligner
       const userStr = localStorage.getItem('user');
-      if (userStr) {
-        const u = JSON.parse(userStr);
-        if (u.role === 'analyste' || u.role === 'admin') {
+      const u = userStr ? JSON.parse(userStr) : null;
+      
+      // 1. Fetch requisitions to compile (Compilateur/Admin only)
+      if (u && (u.role.toLowerCase() === 'compilateur' || u.role === 'admin')) {
+        try {
+          const reqs = await requisitionsAPI.getRequisitionsToCompile();
+          setRequisitions(reqs);
+        } catch (e) {
+          console.warn('Erreur chargement a-compiler:', e);
+        }
+      }
+
+      // 2. Fetch history (All allowed roles)
+      try {
+        const bords = await requisitionsAPI.getBordereaux();
+        setBordereaux(bords);
+      } catch (e) {
+        console.warn('Erreur chargement historique:', e);
+      }
+
+      // 3. Fetch bordereaux to align (Analyste/Admin only)
+      if (u && (u.role === 'analyste' || u.role === 'admin')) {
+         try {
            const aligns = await requisitionsAPI.getBordereauxToAlign();
            setBordereauxAAligner(aligns);
-        }
+         } catch (e) {
+            console.warn('Erreur chargement a-aligner:', e);
+         }
       }
 
       setError(null);

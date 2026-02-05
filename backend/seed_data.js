@@ -64,7 +64,8 @@ async function seedData() {
             { username: 'comptable', role: 'comptable', service: finService },
             { username: 'analyste.compta', role: 'analyste', service: finService },
             { username: 'pm.user', role: 'pm', service: itService },
-            { username: 'gm.user', role: 'gm', service: itService }
+            { username: 'gm.user', role: 'gm', service: itService },
+            { username: 'compilateur', role: 'compilateur', service: finService }
         ];
 
         for (const user of users) {
@@ -84,12 +85,12 @@ async function seedData() {
                 );
                 console.log(`✅ Utilisateur ${user.username} ajouté.`);
             } else {
-                // Mise à jour de l'activation uniquement (ne pas écraser le mot de passe s'il a été changé)
+                // Mise à jour de l'activation et du rôle (pour corriger d'éventuelles erreurs de casse)
                 await dbUtils.run(
-                    'UPDATE users SET actif = TRUE WHERE id = ?',
-                    [existing.id]
+                    'UPDATE users SET actif = TRUE, role = ? WHERE id = ?',
+                    [user.role, existing.id]
                 );
-                console.log(`🔄 Utilisateur ${user.username} vérifié (actif = TRUE).`);
+                console.log(`🔄 Utilisateur ${user.username} vérifié et mis à jour (actif = TRUE, role = ${user.role}).`);
             }
         }
 
