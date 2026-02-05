@@ -209,55 +209,44 @@ const CompilationsPage: React.FC = () => {
           return;
       }
 
-      const pdfUrl = `${API_BASE_URL}/api/compilations/${bordereau.id}/pdf`;
-      console.log('Tentative de téléchargement PDF:', pdfUrl);
-      console.log('Token disponible:', token ? 'OUI' : 'NON');
-
-      // Utiliser API_BASE_URL centralisé pour la consistance
-      const response = await fetch(pdfUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('Réponse PDF:', response.status, response.statusText);
-
-      if (response.ok) {
-        const blob = await response.blob();
-        console.log('Blob PDF créé, taille:', blob.size, 'bytes');
-        
-        const url = window.URL.createObjectURL(blob);
-        
-        // Créer un lien temporaire pour le téléchargement
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.download = `bordereau-${bordereau.numero}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Nettoyer l'URL après 60 secondes
-        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-        
-        console.log('PDF généré avec succès pour bordereau:', bordereau.numero);
-      } else {
-        console.error('Erreur réponse PDF:', response.status, response.statusText);
-        const errorText = await response.text();
-        console.error('Détail erreur:', errorText);
-        setError(`Erreur serveur: ${response.status} - ${response.statusText}`);
-        
-        // Fallback: essayer l'ouverture directe
-        const fallbackUrl = `${API_BASE_URL}/api/compilations/${bordereau.id}/pdf?token=${token}`;
-        console.log('Fallback URL:', fallbackUrl);
-        window.open(fallbackUrl, '_blank');
+      console.log('Tentative de téléchargement via API (Axios)...');
+      
+      // Utilisation de l'API configurée (gère l'URL de base et l'authentification)
+      const blob = await requisitionsAPI.downloadBordereauPdf(bordereau.id);
+      
+      console.log('Blob PDF reçu, taille:', blob.size, 'bytes');
+      
+      if (blob.size < 100) {
+          console.warn('Blob trop petit, possible erreur JSON renvoyée comme Blob');
+          // On pourrait essayer de lire le blob comme texte ici pour voir l'erreur
       }
+
+      const url = window.URL.createObjectURL(blob);
+      
+      // Créer un lien temporaire pour le téléchargement
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.download = `bordereau-${bordereau.numero}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Nettoyer l'URL après 60 secondes
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+      
+      console.log('PDF généré avec succès pour bordereau:', bordereau.numero);
       
     } catch (err: any) {
       console.error('Erreur téléchargement PDF:', err);
-      setError(`Erreur: ${err.message || 'Impossible de télécharger le PDF'}`);
+      
+      // Fallback: essayer l'ouverture directe avec token en query param
+      console.log('Tentative Fallback: Ouverture directe avec token...');
+      const token = localStorage.getItem('token');
+      const fallbackUrl = `${API_BASE_URL}/api/compilations/${bordereau.id}/pdf?token=${token}`;
+      window.open(fallbackUrl, '_blank');
+      
+      setError(`Erreur lors du téléchargement direct. Une tentative d'ouverture dans un nouvel onglet a été lancée.`);
     }
   };
 
