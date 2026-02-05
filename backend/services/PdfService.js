@@ -39,17 +39,17 @@ class PdfService {
         let logoImage = null;
         try {
             const extensions = ['.png', '.jpg', '.jpeg'];
-            const uploadDir = path.join(__dirname, '../uploads');
             for (const ext of extensions) {
-                const logoPath = path.join(uploadDir, 'logo' + ext);
-                if (fs.existsSync(logoPath)) {
-                    const logoBytes = fs.readFileSync(logoPath);
+                try {
+                    const logoBytes = await StorageService.getFileBuffer('logo' + ext);
                     if (ext === '.png') {
                         logoImage = await mergedPdf.embedPng(logoBytes);
                     } else {
                         logoImage = await mergedPdf.embedJpg(logoBytes);
                     }
                     break;
+                } catch (ignore) {
+                    // Fichier non trouvé avec cette extension, on continue
                 }
             }
         } catch (err) {
