@@ -91,6 +91,25 @@ class StorageService {
             }
         }
     }
+
+    // Check if file exists
+    async fileExists(filename) {
+        if (this.supabase) {
+            const { data, error } = await this.supabase.storage
+                .from(this.bucket)
+                .list('', {
+                    limit: 1,
+                    search: filename
+                });
+            
+            if (error) return false;
+            // Exact match check
+            return data && data.length > 0 && data.some(f => f.name === filename);
+        } else {
+            const filePath = path.join(this.uploadsDir, filename);
+            return fs.existsSync(filePath);
+        }
+    }
 }
 
 module.exports = new StorageService();

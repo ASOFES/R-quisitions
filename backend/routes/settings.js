@@ -7,6 +7,8 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 const { dbUtils } = require('../database/database');
 const WorkflowService = require('../services/WorkflowService');
 
+const StorageService = require('../services/StorageService');
+
 const router = express.Router();
 
 // --- Workflow Settings Routes ---
@@ -40,20 +42,8 @@ router.post('/workflow', authenticateToken, requireRole(['admin']), async (req, 
 });
 
 // --- Existing Logo Routes ---
-// Configuration de multer pour l'upload de logo
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadDir)){
-        fs.mkdirSync(uploadDir);
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // On garde l'extension d'origine en minuscule
-    cb(null, 'logo' + path.extname(file.originalname).toLowerCase());
-  }
-});
+// Configuration de multer pour l'upload de logo (MemoryStorage pour compatibilité StorageService)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -70,12 +60,12 @@ const upload = multer({
 });
 
 // Obtenir le logo actuel
-router.get('/logo', (req, res) => {
+router.get('/logo', async (req, res) => {
   const extensions = ['.png', '.jpg', '.jpeg', '.gif'];
   let logoFile = null;
   
   for (const ext of extensions) {
-    if (fs.existsSync(path.join(__dirname, '../uploads', 'logo' + ext))) {
+    if (await StorageService.fileExists('logo' + ext)) {
       logoFile = 'logo' + ext;
       break;
     }
@@ -90,25 +80,38 @@ router.get('/logo', (req, res) => {
 });
 
 // Upload nouveau logo
-router.post('/logo', authenticateToken, requireRole(['admin']), upload.single('logo'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'Aucun fichier téléchargé' });
-    }
-    
-    // Supprimer les anciens logos avec des extensions différentes
-    const extensions = ['.png', '.jpg', '.jpeg', '.gif'];
-    const currentExt = path.extname(req.file.originalname);
-    
-    extensions.forEach(ext => {
-        if (ext !== currentExt) {
-            const oldPath = path.join(__dirname, '../uploads', 'logo' + ext);
-            if (fs.existsSync(oldPath)) {
-                fs.unlinkSync(oldPath);
+router.post('/logo', authenticateToken, requireRole(['admin']), upload.single('logo'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Aucun fichier téléchargé' });
+        }
+        
+        // Supprimer les anciens logos avec des extensions différentes
+        const extensions = ['.png', '.jpg', '.jpeg', '.gif'];
+        const currentExt = path.extname(req.file.originalname).toLowerCase();
+        
+        for (const ext of extensions) {
+            if (ext !== currentExt) {
+                // On essaie de supprimer, on ignore si ça échoue (fichier n'existe pas)
+                try {
+                    await StorageService.deleteFile('logo' + ext);
+                } catch (e) {
+                    // Ignore
+                }
             }
         }
-    });
 
-    res.json({ message: 'Logo mis à jour avec succès', url: `/uploads/logo${currentExt}` });
+        // Upload new logo with specific name
+        // On modifie le nom du fichier pour qu'il soit 'logo.ext'
+        req.file.originalname = 'logo' + currentExt;
+        
+        const result = await StorageService.uploadFile(req.file);
+
+        res.json({ message: 'Logo mis à jour avec succès', url: `/uploads/${result.filename}` });
+    } catch (error) {
+        console.error('Erreur upload logo:', error);
+        res.status(500).json({ error: 'Erreur lors de l\'upload du logo' });
+    }
 });
 
 module.exports = router;
