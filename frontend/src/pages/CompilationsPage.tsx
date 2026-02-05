@@ -197,37 +197,24 @@ const CompilationsPage: React.FC = () => {
 
   const handleDownloadPdf = async (bordereau: Bordereau) => {
     try {
-      // Feedback immédiat
-      console.log('Début téléchargement PDF pour bordereau:', bordereau.id);
+      // Méthode alternative: Ouverture directe dans un nouvel onglet
+      // Cela contourne souvent les problèmes de blob/cors stricts
+      const token = localStorage.getItem('token');
+      const API_URL = process.env.REACT_APP_API_URL || 'https://r-quisitions.onrender.com/api';
       
-      const blob = await requisitionsAPI.downloadBordereauPdf(bordereau.id);
-      
-      console.log('Blob reçu:', blob);
-      
-      // Vérifier si le blob est un JSON (erreur serveur)
-      if (blob.type === 'application/json') {
-          const text = await blob.text();
-          const errorData = JSON.parse(text);
-          console.error('Erreur reçue du backend:', errorData);
-          throw new Error(errorData.error || 'Erreur inconnue du serveur');
+      if (!token) {
+          setError('Session expirée, veuillez vous reconnecter.');
+          return;
       }
 
-      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Bordereau_${bordereau.numero}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      if (link.parentNode) link.parentNode.removeChild(link);
+      const url = `${API_URL}/compilations/${bordereau.id}/pdf?token=${token}`;
+      console.log('Ouverture URL PDF:', url);
       
-      // Nettoyage
-      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      window.open(url, '_blank');
       
     } catch (err: any) {
       console.error('Erreur téléchargement PDF:', err);
-      const errMsg = err.message || 'Erreur inconnue';
-      setError(`Impossible de télécharger le PDF: ${errMsg}`);
-      alert(`Erreur: ${errMsg}`); // Ajout d'une alerte visible
+      alert(`Erreur: ${err.message}`);
     }
   };
 
