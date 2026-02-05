@@ -25,6 +25,7 @@ import {
   Tooltip,
   TablePagination
 } from '@mui/material';
+import { FormControlLabel, Checkbox } from '@mui/material';
 import {
   Add,
   Edit,
@@ -50,6 +51,7 @@ const UsersManagement: React.FC = () => {
     service_id: '',
     zone_id: '',
   });
+  const [definirCommeChef, setDefinirCommeChef] = useState<boolean>(false);
   const [alert, setAlert] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   // Pagination state
@@ -100,6 +102,8 @@ const UsersManagement: React.FC = () => {
         service_id: user.service_id?.toString() || '',
         zone_id: user.zone_id?.toString() || '',
       });
+      const svc = services.find(s => s.id === user.service_id);
+      setDefinirCommeChef(!!(svc && svc.chef_id === user.id));
     } else {
       setEditingUser(null);
       setFormData({
@@ -111,6 +115,7 @@ const UsersManagement: React.FC = () => {
         service_id: '',
         zone_id: '',
       });
+      setDefinirCommeChef(false);
     }
     setOpenDialog(true);
   };
@@ -127,6 +132,7 @@ const UsersManagement: React.FC = () => {
       service_id: '',
       zone_id: '',
     });
+    setDefinirCommeChef(false);
   };
 
   const handleSubmit = async () => {
@@ -138,11 +144,17 @@ const UsersManagement: React.FC = () => {
       };
 
       if (editingUser) {
-        await usersAPI.update(editingUser.id, payload as any);
+        const updated = await usersAPI.update(editingUser.id, payload as any);
         setAlert({ type: 'success', message: 'Utilisateur mis à jour avec succès' });
+        if (definirCommeChef && payload.service_id) {
+          await servicesAPI.update(payload.service_id, { chef_id: editingUser.id });
+        }
       } else {
-        await usersAPI.create(payload as any);
+        const created = await usersAPI.create(payload as any);
         setAlert({ type: 'success', message: 'Utilisateur créé avec succès' });
+        if (definirCommeChef && payload.service_id && created?.id) {
+          await servicesAPI.update(payload.service_id, { chef_id: created.id });
+        }
       }
       handleCloseDialog();
       loadData();
@@ -391,6 +403,17 @@ const UsersManagement: React.FC = () => {
                 </MenuItem>
               ))}
             </TextField>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={definirCommeChef}
+                  onChange={(e) => setDefinirCommeChef(e.target.checked)}
+                  disabled={!formData.service_id}
+                  color="primary"
+                />
+              }
+              label="Définir comme Chef du service sélectionné"
+            />
             <TextField
               select
               label="Zone"
