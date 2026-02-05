@@ -24,7 +24,9 @@ import {
   MonetizationOn,
   Security,
   Speed,
-  VerifiedUser
+  VerifiedUser,
+  SupervisorAccount,
+  FactCheck
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -68,12 +70,14 @@ const Login: React.FC = () => {
     }
   };
 
-  const roleIcons = {
+  const roleIcons: { [key: string]: React.ReactElement } = {
     admin: <Business />,
-    emetteur: <Assignment />,
-    analyste: <Assessment />,
-    challenger: <People />,
-    validateur: <AccountBalance />,
+    'edla.m': <Assignment />,
+    'chef.rh': <SupervisorAccount />,
+    'analyste.compta': <Assessment />,
+    'compilateur': <FactCheck />,
+    'pm.user': <People />,
+    'gm.user': <AccountBalance />,
     comptable: <MonetizationOn />,
   };
 
