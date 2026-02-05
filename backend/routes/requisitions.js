@@ -178,7 +178,7 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const user = req.user;
     let query = `
-      SELECT r.*, u.nom_complet as emetteur_nom, u.email as emetteur_email, u.role as emetteur_role, z.nom as emetteur_zone, s.code as service_code, s.nom as service_nom,
+      SELECT r.*, u.nom_complet as emetteur_nom, u.email as emetteur_email, u.role as emetteur_role, z.nom as emetteur_zone, s.code as service_code, s.nom as service_nom, s.chef_id as service_chef_id,
              (SELECT COUNT(*) FROM pieces_jointes pj WHERE pj.requisition_id = r.id) as nb_pieces
       FROM requisitions r
       LEFT JOIN users u ON r.emetteur_id = u.id
@@ -193,24 +193,19 @@ router.get('/', authenticateToken, async (req, res) => {
       // Admin voit tout
       query += ' ORDER BY r.created_at DESC';
     } else if (user.role === 'emetteur') {
-      // Émetteur ne voit que ses réquisitions
-      query += ' WHERE r.emetteur_id = ? ORDER BY r.created_at DESC';
-      params.push(user.id);
+      // Émetteur voit ses réquisitions OU celles de son service s'il est chef (à valider)
+      query += ' WHERE (r.emetteur_id = ?) OR (s.chef_id = ? AND r.niveau = ?) ORDER BY r.created_at DESC';
+      params.push(user.id, user.id, 'approbation_service');
     } else if (user.role === 'comptable') {
-      // Comptable ne voit que les réquisitions validées et plus
-      query += ' WHERE r.niveau IN (?, ?, ?, ?) ORDER BY r.created_at DESC';
-      params.push('validateur', 'paiement', 'justificatif', 'termine');
+      // Comptable voit validées+ OU celles de son service s'il est chef
+      query += ' WHERE (r.niveau IN (?, ?, ?, ?)) OR (s.chef_id = ? AND r.niveau = ?) ORDER BY r.created_at DESC';
+      params.push('validateur', 'paiement', 'justificatif', 'termine', user.id, 'approbation_service');
     } else if (user.role === 'analyste') {
-      // Analyste doit voir aussi les nouvelles réquisitions créées par les émetteurs
-      // Ajout des niveaux intermédiaires pour le suivi (transparence)
-      query += ' WHERE (r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ?) ORDER BY r.created_at DESC';
-      params.push('emetteur', 'analyste', 'challenger', 'validateur', 'gm', 'compilation', 'validation_bordereau', 'paiement', 'justificatif', 'termine');
-      
-      console.log('Récupération des réquisitions pour analyste (incluant tous les niveaux pour suivi)');
-      console.log(`Requête: ${query}`);
-      console.log(`Paramètres: ${params}`);
+      // Analyste voit tout le workflow OU celles de son service s'il est chef
+      query += ' WHERE (r.niveau IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) OR (s.chef_id = ? AND r.niveau = ?) ORDER BY r.created_at DESC';
+      params.push('emetteur', 'analyste', 'challenger', 'validateur', 'gm', 'compilation', 'validation_bordereau', 'paiement', 'justificatif', 'termine', user.id, 'approbation_service');
     } else {
-      // Challenger, Validateur, PM, GM voient les réquisitions à partir de leur niveau et les suivants
+      // Autres rôles (Challenger, Validateur, PM, GM)
       const niveauOrder = {
         'challenger': 'challenger',
         'validateur': 'validateur',
@@ -220,20 +215,18 @@ router.get('/', authenticateToken, async (req, res) => {
       
       const niveau = niveauOrder[user.role];
       if (niveau) {
-        // Logique de visibilité en cascade
         let visibleLevels = [];
         if (user.role === 'challenger') visibleLevels = ['challenger', 'validateur', 'gm', 'paiement', 'justificatif', 'termine'];
         else if (user.role === 'validateur' || user.role === 'pm') visibleLevels = ['challenger', 'validateur', 'gm', 'paiement', 'justificatif', 'termine'];
         else if (user.role === 'gm') visibleLevels = ['gm', 'paiement', 'justificatif', 'termine'];
         
-        // Construction de la clause WHERE avec les niveaux visibles
         const placeholders = visibleLevels.map(() => '?').join(', ');
-        query += ` WHERE r.niveau IN (${placeholders}) ORDER BY r.created_at DESC`;
-        params.push(...visibleLevels);
-        
-        console.log(`Récupération des réquisitions pour ${user.role} (niveaux: ${visibleLevels.join(', ')})`);
-        console.log(`Requête: ${query}`);
-        console.log(`Paramètres: ${params}`);
+        query += ` WHERE (r.niveau IN (${placeholders})) OR (s.chef_id = ? AND r.niveau = ?) ORDER BY r.created_at DESC`;
+        params.push(...visibleLevels, user.id, 'approbation_service');
+      } else {
+         // Fallback si rôle inconnu mais potentiellement chef
+         query += ' WHERE (s.chef_id = ? AND r.niveau = ?) ORDER BY r.created_at DESC';
+         params.push(user.id, 'approbation_service');
       }
     }
     
@@ -510,12 +503,19 @@ router.put('/:id/action', authenticateToken, checkRequisitionAccess, async (req,
     }
 
     const allowedRoles = ['emetteur', 'analyste', 'challenger', 'validateur', 'gm', 'comptable'];
-    if (!allowedRoles.includes(userRole) && userRole !== 'pm') {
+    const isChef = requisition.chef_id === user.id;
+
+    if (!allowedRoles.includes(userRole) && userRole !== 'pm' && !isChef) {
       return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à effectuer cette action' });
     }
 
     // Vérifier si la réquisition est au bon niveau pour l'utilisateur
-    if (requisition.niveau !== userRole) {
+    if (requisition.niveau === 'approbation_service') {
+        if (!isChef && userRole !== 'admin') {
+             return res.status(403).json({ error: 'Seul le chef de service peut valider cette étape' });
+        }
+        // OK for Chef
+    } else if (requisition.niveau !== userRole) {
          // Exception pour l'analyste qui agit sur les réquisitions au niveau 'emetteur'
          if (userRole === 'analyste' && requisition.niveau === 'emetteur') {
              // OK

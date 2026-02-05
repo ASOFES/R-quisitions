@@ -23,7 +23,11 @@ import {
   alpha,
   Tooltip,
   Switch,
-  TablePagination
+  TablePagination,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   Add,
@@ -32,12 +36,13 @@ import {
   CheckCircle,
   Cancel
 } from '@mui/icons-material';
-import { servicesAPI } from '../services/api';
-import { Service } from '../services/api';
+import { servicesAPI, usersAPI } from '../services/api';
+import { Service, User } from '../services/api';
 
 const ServicesManagement: React.FC = () => {
   const theme = useTheme();
   const [services, setServices] = useState<Service[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
@@ -46,6 +51,7 @@ const ServicesManagement: React.FC = () => {
     nom: '',
     description: '',
     actif: true,
+    chef_id: undefined as number | undefined | '',
   });
   const [alert, setAlert] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
@@ -60,11 +66,15 @@ const ServicesManagement: React.FC = () => {
   const loadServices = async () => {
     try {
       setLoading(true);
-      const servicesData = await servicesAPI.getAll();
+      const [servicesData, usersData] = await Promise.all([
+        servicesAPI.getAll(),
+        usersAPI.getAll()
+      ]);
       setServices(servicesData);
+      setUsers(usersData.filter((u: User) => u.actif)); // Only active users
     } catch (error) {
-      console.error('Erreur lors du chargement des services:', error);
-      setAlert({ type: 'error', message: 'Erreur lors du chargement des services' });
+      console.error('Erreur lors du chargement des données:', error);
+      setAlert({ type: 'error', message: 'Erreur lors du chargement des données' });
     } finally {
       setLoading(false);
     }
@@ -78,6 +88,7 @@ const ServicesManagement: React.FC = () => {
         nom: service.nom,
         description: service.description || '',
         actif: service.actif,
+        chef_id: service.chef_id || '',
       });
     } else {
       setEditingService(null);
@@ -86,6 +97,7 @@ const ServicesManagement: React.FC = () => {
         nom: '',
         description: '',
         actif: true,
+        chef_id: '',
       });
     }
     setOpenDialog(true);
@@ -99,16 +111,22 @@ const ServicesManagement: React.FC = () => {
       nom: '',
       description: '',
       actif: true,
+      chef_id: '',
     });
   };
 
   const handleSubmit = async () => {
     try {
+      const dataToSend = {
+        ...formData,
+        chef_id: formData.chef_id === '' ? undefined : Number(formData.chef_id)
+      };
+
       if (editingService) {
-        await servicesAPI.update(editingService.id, formData);
+        await servicesAPI.update(editingService.id, dataToSend);
         setAlert({ type: 'success', message: 'Service mis à jour avec succès' });
       } else {
-        await servicesAPI.create(formData);
+        await servicesAPI.create(dataToSend);
         setAlert({ type: 'success', message: 'Service créé avec succès' });
       }
       handleCloseDialog();
@@ -207,6 +225,7 @@ const ServicesManagement: React.FC = () => {
               <TableRow>
                 <TableCell sx={{ fontWeight: 700 }}>Code</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Nom</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Chef de Service</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Statut</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
@@ -232,6 +251,11 @@ const ServicesManagement: React.FC = () => {
                   <TableCell>
                     <Typography variant="subtitle2" fontWeight={600}>
                       {service.nom}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color={service.chef_nom ? 'text.primary' : 'text.disabled'}>
+                      {service.chef_nom || 'Non assigné'}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -273,7 +297,7 @@ const ServicesManagement: React.FC = () => {
               ))}
               {services.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                     <Typography color="text.secondary">Aucun service trouvé</Typography>
                   </TableCell>
                 </TableRow>
@@ -315,6 +339,26 @@ const ServicesManagement: React.FC = () => {
               fullWidth
               variant="outlined"
             />
+            
+            <FormControl fullWidth variant="outlined">
+              <InputLabel id="chef-select-label">Chef de Service</InputLabel>
+              <Select
+                labelId="chef-select-label"
+                value={formData.chef_id}
+                onChange={(e) => setFormData({ ...formData, chef_id: e.target.value as number | '' })}
+                label="Chef de Service"
+              >
+                <MenuItem value="">
+                  <em>Non assigné</em>
+                </MenuItem>
+                {users.map((user) => (
+                  <MenuItem key={user.id} value={user.id}>
+                    {user.nom_complet} ({user.role})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
             <TextField
               label="Description"
               value={formData.description}

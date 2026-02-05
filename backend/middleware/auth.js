@@ -53,7 +53,7 @@ const checkRequisitionAccess = async (req, res, next) => {
   try {
     // Récupérer la réquisition
     const requisition = await dbUtils.get(
-      'SELECT r.*, u.nom_complet as emetteur_nom FROM requisitions r JOIN users u ON r.emetteur_id = u.id WHERE r.id = ?',
+      'SELECT r.*, u.nom_complet as emetteur_nom, s.chef_id FROM requisitions r JOIN users u ON r.emetteur_id = u.id LEFT JOIN services s ON r.service_id = s.id WHERE r.id = ?',
       [id]
     );
 
@@ -65,6 +65,12 @@ const checkRequisitionAccess = async (req, res, next) => {
     if (user.role === 'admin') {
       req.requisition = requisition;
       return next();
+    }
+
+    // Chef de service (accès spécial pour approbation)
+    if (requisition.chef_id === user.id) {
+        req.requisition = requisition;
+        return next();
     }
 
     // Émetteur ne voit que ses propres réquisitions

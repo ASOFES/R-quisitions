@@ -33,6 +33,7 @@ export interface Requisition {
   emetteur_zone?: string;
   service_id: number;
   service_nom: string;
+  service_chef_id?: number; // ID du chef de service
   niveau?: string;  // Ajout de la propriété niveau
   mode_paiement?: 'Cash' | 'Banque'; // Mode de paiement (Cash ou Banque)
   pieces_jointes: string[];

@@ -59,6 +59,8 @@ export interface Service {
   nom: string;
   description?: string;
   actif: boolean;
+  chef_id?: number;
+  chef_nom?: string;
 }
 
 export interface Zone {

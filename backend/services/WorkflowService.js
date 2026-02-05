@@ -2,6 +2,7 @@ const { dbUtils } = require('../database/database');
 
 const WORKFLOW_STEPS = {
   'emetteur': { valider: 'analyste', modifier: 'emetteur', refuser: 'annule' },
+  'approbation_service': { valider: 'analyste', modifier: 'emetteur', refuser: 'emetteur' },
   'analyste': { valider: 'challenger', modifier: 'emetteur', refuser: 'emetteur' },
   'challenger': { valider: 'validateur', modifier: 'analyste', refuser: 'emetteur' },
   'validateur': { valider: 'gm', modifier: 'challenger', refuser: 'emetteur' },
@@ -57,6 +58,19 @@ class WorkflowService {
 
     if (WORKFLOW_STEPS[currentNiveau] && WORKFLOW_STEPS[currentNiveau][action]) {
         niveauApres = WORKFLOW_STEPS[currentNiveau][action];
+
+        // LOGIQUE D'APPROBATION SERVICE (CHEF DIRECT)
+        if (currentNiveau === 'emetteur' && action === 'valider') {
+             try {
+                const service = await dbUtils.get('SELECT chef_id FROM services WHERE id = ?', [requisition.service_id]);
+                if (service && service.chef_id) {
+                    console.log(`Requisition ${requisition.numero}: Chef de service configuré (ID: ${service.chef_id}), passage à approbation_service.`);
+                    niveauApres = 'approbation_service';
+                }
+             } catch (err) {
+                 console.error('Erreur vérification chef service:', err);
+             }
+        }
 
         // CORRECTION: Si un analyste valide une réquisition qui est encore au niveau 'emetteur',
         // on considère qu'il la soumet ET la valide, donc elle passe directement au challenger.

@@ -146,6 +146,7 @@ const RequisitionsList: React.FC = () => {
               emetteur_nom: req.emetteur_nom || 'Inconnu',
               service_id: req.service_id,
               service_nom: req.service_nom || 'Inconnu',
+              service_chef_id: req.service_chef_id, // Ajout du chef de service
               niveau: req.niveau,
               mode_paiement: req.mode_paiement, // Ajout du mode de paiement
               pieces_jointes: Array.isArray(req.pieces) ? req.pieces.map((p: any) => p.nom_fichier) : [],
@@ -363,6 +364,7 @@ const RequisitionsList: React.FC = () => {
         if (niveau) {
           switch(niveau) {
             case 'emetteur': return { label: 'Chez l\'émetteur', color: theme.palette.warning.main, icon: <Warning fontSize="small" /> };
+            case 'approbation_service': return { label: 'Validation Chef de Service', color: theme.palette.warning.main, icon: <Warning fontSize="small" /> };
             case 'analyste': return { label: 'Chez l\'analyste', color: theme.palette.warning.main, icon: <HourglassEmpty fontSize="small" /> };
             case 'challenger': return { label: 'Chez le challenger', color: theme.palette.warning.main, icon: <HourglassEmpty fontSize="small" /> };
             case 'validateur': return { label: 'Chez le validateur', color: theme.palette.warning.main, icon: <HourglassEmpty fontSize="small" /> };
@@ -421,6 +423,10 @@ const RequisitionsList: React.FC = () => {
 
     // Logique de workflow et exceptions
     if (userRole === 'emetteur' && reqNiveau === 'emetteur') return true;
+
+    // Chef de service (si l'utilisateur est le chef du service de la réquisition)
+    if (reqNiveau === 'approbation_service' && requisition.service_chef_id === user.id) return true;
+
     if (userRole === 'analyste' && reqNiveau === 'emetteur') return true;
     if (userRole === 'pm' && reqNiveau === 'validateur') return true;
     // Permettre au PM/Validateur d'agir aussi si la réquisition est au niveau 'challenger' (workflow simplifié)

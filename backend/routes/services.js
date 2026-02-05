@@ -8,7 +8,11 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const services = await dbUtils.all(
-      'SELECT * FROM services WHERE actif = TRUE ORDER BY nom'
+      `SELECT s.*, u.nom_complet as chef_nom 
+       FROM services s 
+       LEFT JOIN users u ON s.chef_id = u.id 
+       WHERE s.actif = TRUE 
+       ORDER BY s.nom`
     );
 
     res.json(services);
@@ -22,7 +26,10 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/all', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const services = await dbUtils.all(
-      'SELECT * FROM services ORDER BY nom'
+      `SELECT s.*, u.nom_complet as chef_nom 
+       FROM services s 
+       LEFT JOIN users u ON s.chef_id = u.id 
+       ORDER BY s.nom`
     );
 
     res.json(services);
@@ -36,7 +43,7 @@ router.get('/all', authenticateToken, requireRole(['admin']), async (req, res) =
 router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     console.log('Requête de création de service reçue:', req.body);
-    const { code, nom, description } = req.body;
+    const { code, nom, description, chef_id } = req.body;
 
     if (!code || !nom) {
       console.log('Erreur: Code ou nom manquant');
@@ -54,8 +61,8 @@ router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => 
     // Insérer le service
     console.log('Insertion du service dans la base de données');
     const result = await dbUtils.run(
-      'INSERT INTO services (code, nom, description) VALUES (?, ?, ?)',
-      [code, nom, description]
+      'INSERT INTO services (code, nom, description, chef_id) VALUES (?, ?, ?, ?)',
+      [code, nom, description, chef_id || null]
     );
 
     console.log('Service créé avec succès, ID:', result.id);
@@ -73,7 +80,7 @@ router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => 
 router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { code, nom, description, actif } = req.body;
+    const { code, nom, description, actif, chef_id } = req.body;
 
     // Vérifier si le service existe
     const existingService = await dbUtils.get('SELECT id FROM services WHERE id = ?', [id]);
@@ -110,7 +117,11 @@ router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) =
       updates.push('actif = ?');
       updateParams.push(actif);
     }
-
+    if (chef_id !== undefined) {
+      updates.push('chef_id = ?');
+      updateParams.push(chef_id);
+    }
+    
     updates.push('updated_at = CURRENT_TIMESTAMP');
     updateQuery += updates.join(', ') + ' WHERE id = ?';
     updateParams.push(id);
