@@ -305,6 +305,13 @@ export const requisitionsAPI = {
     return response.data;
   },
 
+  downloadRequisitionPdf: async (id: number) => {
+    const response = await api.get(`/requisitions/${id}/pdf`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
   // API Compilations
   getRequisitionsToCompile: async () => {
     const response = await api.get('/compilations/a-compiler');
