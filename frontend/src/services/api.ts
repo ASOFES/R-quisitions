@@ -101,6 +101,7 @@ export interface Requisition {
   service_nom: string;
   nb_pieces?: number;
   mode_paiement?: string;
+  urgence?: 'basse' | 'normale' | 'haute' | 'critique';
 }
 
 export interface RequisitionAction {

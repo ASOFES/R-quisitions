@@ -27,6 +27,7 @@ import {
 } from '@mui/material';
 import { requisitionsAPI, Requisition, Bordereau, User } from '../services/api';
 import { PictureAsPdf, AddTask, History, FactCheck } from '@mui/icons-material';
+import { API_BASE_URL } from '../config';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -197,24 +198,51 @@ const CompilationsPage: React.FC = () => {
 
   const handleDownloadPdf = async (bordereau: Bordereau) => {
     try {
-      // Méthode alternative: Ouverture directe dans un nouvel onglet
-      // Cela contourne souvent les problèmes de blob/cors stricts
       const token = localStorage.getItem('token');
-      const API_URL = process.env.REACT_APP_API_URL || 'https://r-quisitions.onrender.com/api';
       
       if (!token) {
           setError('Session expirée, veuillez vous reconnecter.');
           return;
       }
 
-      const url = `${API_URL}/compilations/${bordereau.id}/pdf?token=${token}`;
-      console.log('Ouverture URL PDF:', url);
-      
-      window.open(url, '_blank');
+      // Utiliser API_BASE_URL centralisé pour la consistance
+      const response = await fetch(`${API_BASE_URL}/api/compilations/${bordereau.id}/pdf`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        
+        // Créer un lien temporaire pour le téléchargement
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.download = `bordereau-${bordereau.numero}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Nettoyer l'URL après 60 secondes
+        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+        
+        console.log('PDF généré avec succès pour bordereau:', bordereau.numero);
+      } else {
+        console.error('Erreur réponse PDF:', response.status, response.statusText);
+        setError(`Erreur serveur: ${response.status} - Impossible de générer le PDF`);
+        
+        // Fallback: essayer l'ouverture directe
+        const fallbackUrl = `${API_BASE_URL}/api/compilations/${bordereau.id}/pdf?token=${token}`;
+        window.open(fallbackUrl, '_blank');
+      }
       
     } catch (err: any) {
       console.error('Erreur téléchargement PDF:', err);
-      alert(`Erreur: ${err.message}`);
+      setError(`Erreur: ${err.message || 'Impossible de télécharger le PDF'}`);
     }
   };
 
