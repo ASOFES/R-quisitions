@@ -425,7 +425,7 @@ const PMProfileImproved: React.FC = () => {
 
                 <Box sx={{ mb: 3 }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Filtrer par statut</InputLabel>
                         <Select
@@ -440,7 +440,7 @@ const PMProfileImproved: React.FC = () => {
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Service</InputLabel>
                         <Select
@@ -455,7 +455,7 @@ const PMProfileImproved: React.FC = () => {
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Urgence</InputLabel>
                         <Select
