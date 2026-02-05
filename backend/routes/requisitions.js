@@ -202,10 +202,11 @@ router.get('/', authenticateToken, async (req, res) => {
       params.push('validateur', 'paiement', 'justificatif', 'termine');
     } else if (user.role === 'analyste') {
       // Analyste doit voir aussi les nouvelles réquisitions créées par les émetteurs
-      query += ' WHERE (r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ?) ORDER BY r.created_at DESC';
-      params.push('emetteur', 'analyste', 'paiement', 'justificatif', 'termine');
+      // Ajout des niveaux intermédiaires pour le suivi (transparence)
+      query += ' WHERE (r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ? OR r.niveau = ?) ORDER BY r.created_at DESC';
+      params.push('emetteur', 'analyste', 'challenger', 'validateur', 'gm', 'compilation', 'validation_bordereau', 'paiement', 'justificatif', 'termine');
       
-      console.log('Récupération des réquisitions pour analyste (incluant niveau emetteur)');
+      console.log('Récupération des réquisitions pour analyste (incluant tous les niveaux pour suivi)');
       console.log(`Requête: ${query}`);
       console.log(`Paramètres: ${params}`);
     } else {
