@@ -28,15 +28,16 @@ class StorageService {
 
 
     // Upload file (takes a multer file object)
-    async uploadFile(file) {
-        const fileName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
+    async uploadFile(file, customName = null) {
+        const fileName = customName || `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
         
         if (this.supabase) {
             // Supabase Upload
             const { data, error } = await this.supabase.storage
                 .from(this.bucket)
                 .upload(fileName, file.buffer, {
-                    contentType: file.mimetype
+                    contentType: file.mimetype,
+                    upsert: true
                 });
 
             if (error) throw error;

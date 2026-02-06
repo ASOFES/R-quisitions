@@ -97,6 +97,26 @@ const RequisitionsList: React.FC = () => {
   const [paymentMode, setPaymentMode] = useState<'Cash' | 'Banque'>('Cash');
   const [submitting, setSubmitting] = useState(false);
   const [compilingPdf, setCompilingPdf] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch Logo
+    const fetchLogo = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/settings/logo`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (data.url) {
+                setLogoUrl(`${API_BASE_URL}${data.url}`);
+            }
+        } catch (error) {
+            console.error('Error fetching logo:', error);
+        }
+    };
+    fetchLogo();
+  }, [token]);
+
 
   useEffect(() => {
     loadRequisitions();
@@ -1250,7 +1270,7 @@ const RequisitionsList: React.FC = () => {
               {/* Header for Print (Logo & Title) */}
               <Box className="print-only" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 2, borderBottom: '2px solid #eee' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <img src="/logo192.png" alt="Logo" style={{ height: 60, width: 'auto' }} />
+                  <img src={logoUrl || "/logo192.png"} alt="Logo" style={{ height: 60, width: 'auto', objectFit: 'contain' }} />
                   <Box>
                     <Typography variant="h6" fontWeight="bold" sx={{ color: 'primary.main' }}>GESTION DES RÉQUISITIONS</Typography>
                     <Typography variant="body2" color="text.secondary">Fiche de suivi</Typography>

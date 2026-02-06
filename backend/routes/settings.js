@@ -102,10 +102,10 @@ router.post('/logo', authenticateToken, requireRole(['admin']), upload.single('l
         }
 
         // Upload new logo with specific name
-        // On modifie le nom du fichier pour qu'il soit 'logo.ext'
-        req.file.originalname = 'logo' + currentExt;
+        const logoName = 'logo' + currentExt;
+        // On passe le nom spécifique à uploadFile
         
-        const result = await StorageService.uploadFile(req.file);
+        const result = await StorageService.uploadFile(req.file, logoName);
 
         res.json({ message: 'Logo mis à jour avec succès', url: `/uploads/${result.filename}` });
     } catch (error) {

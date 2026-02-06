@@ -29,6 +29,7 @@ const Login: React.FC = () => {
   const theme = useTheme();
 
   useEffect(() => {
+    // Chargement du logo depuis les paramètres
     const fetchLogo = async () => {
       try {
         const response = await api.get('/settings/logo');
