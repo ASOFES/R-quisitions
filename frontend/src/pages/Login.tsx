@@ -8,25 +8,13 @@ import {
   Box,
   Alert,
   CircularProgress,
-  Divider,
-  useTheme,
-  alpha,
-  Card,
-  CardContent
+  useTheme
 } from '@mui/material';
 import {
   LockOutlined,
-  Business,
-  Assignment,
-  AccountBalance,
-  People,
-  Assessment,
-  MonetizationOn,
   Security,
   Speed,
-  VerifiedUser,
-  SupervisorAccount,
-  FactCheck
+  VerifiedUser
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -68,17 +56,6 @@ const Login: React.FC = () => {
     } catch (err: any) {
       setError(err.response?.data?.error || 'Erreur de connexion');
     }
-  };
-
-  const roleIcons: { [key: string]: React.ReactElement } = {
-    admin: <Business />,
-    'edla.m': <Assignment />,
-    'chef.rh': <SupervisorAccount />,
-    'analyste.compta': <Assessment />,
-    'compilateur': <FactCheck />,
-    'pm.user': <People />,
-    'gm.user': <AccountBalance />,
-    comptable: <MonetizationOn />,
   };
 
   return (
@@ -230,57 +207,16 @@ const Login: React.FC = () => {
               </Alert>
             )}
 
-            <Divider sx={{ my: 4 }}>
-              <Typography variant="caption" color="text.secondary">
-                COMPTES DE DÉMONSTRATION
+            <Box sx={{ mt: 3, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                En cas de problème, contactez l'administrateur système.
               </Typography>
-            </Divider>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-              {Object.entries({
-                admin: { name: 'Administrateur', desc: 'Gestion complète' },
-                'edla.m': { name: 'Initiateur', desc: 'Crée les demandes' },
-                'analyste.compta': { name: 'Analyste', desc: 'Validation Niv 1' },
-                'pm.user': { name: 'Challenger', desc: 'Validation Niv 2' },
-                'gm.user': { name: 'Validateur', desc: 'Validation Finale' },
-                'chef.rh': { name: 'Chef de Service', desc: 'Approbation Chef' },
-                'compilateur': { name: 'Compilateur', desc: 'Prép. Paiement' },
-                'comptable': { name: 'Comptable', desc: 'Paiements' },
-              }).map(([userKey, info]) => (
-                <Card 
-                  key={userKey} 
-                  variant="outlined" 
-                  sx={{ 
-                    cursor: 'pointer', 
-                    '&:hover': { borderColor: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.02) },
-                    transition: 'all 0.2s'
-                  }}
-                  onClick={() => {
-                    setUsername(userKey);
-                    setPassword('password123');
-                  }}
-                >
-                  <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 }, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Box sx={{ color: 'text.secondary' }}>
-                      {roleIcons[userKey as keyof typeof roleIcons]}
-                    </Box>
-                    <Box>
-                      <Typography variant="subtitle2" fontWeight={700} sx={{ lineHeight: 1.2 }}>
-                        {info.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {userKey}
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              ))}
             </Box>
-            
-            <Typography variant="caption" display="block" textAlign="center" sx={{ mt: 3, color: 'text.secondary' }}>
-              Mot de passe par défaut: <strong>password123</strong>
-            </Typography>
           </Paper>
+          
+          <Typography variant="caption" display="block" textAlign="center" sx={{ mt: 4, color: 'text.disabled' }}>
+            © {new Date().getFullYear()} Requisitions Pro. Tous droits réservés.
+          </Typography>
         </Container>
       </Box>
     </Box>
