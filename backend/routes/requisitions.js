@@ -628,10 +628,10 @@ router.put('/:id', authenticateToken, upload.array('pieces', 5), async (req, res
     if (site_id) { updates.push('site_id = ?'); params.push(site_id); }
     
     // Si resoumission
-    if (resubmit === 'true' || resubmit === true) {
-        updates.push('statut = ?'); params.push('en_cours');
-        updates.push('niveau = ?'); params.push('emetteur');
-    }
+    // if (resubmit === 'true' || resubmit === true) {
+    //     updates.push('statut = ?'); params.push('en_cours');
+    //     updates.push('niveau = ?'); params.push('emetteur');
+    // }
 
     if (updates.length > 0) {
         params.push(id);
@@ -654,6 +654,12 @@ router.put('/:id', authenticateToken, upload.array('pieces', 5), async (req, res
                  [id, item.description, qty, price, total, item.site_id || site_id || null]
              );
         }
+    }
+
+    // Handle resubmission logic via WorkflowService
+    if (resubmit === 'true' || resubmit === true) {
+        const userRole = user.role ? user.role.toLowerCase() : 'emetteur';
+        await WorkflowService.processAction(id, 'valider', userRole, user.id, 'Correction soumise');
     }
     
     // Ajouter les nouvelles pièces jointes si présentes
