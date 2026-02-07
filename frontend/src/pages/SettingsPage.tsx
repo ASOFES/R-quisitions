@@ -29,10 +29,41 @@ const SettingsPage: React.FC = () => {
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
 
+  // Exchange Rate State
+  const [exchangeRate, setExchangeRate] = useState<number>(2800);
+  const [loadingRate, setLoadingRate] = useState(false);
+  const [savingRate, setSavingRate] = useState(false);
+
   useEffect(() => {
     fetchLogo();
     fetchWorkflowSettings();
+    fetchExchangeRate();
   }, []);
+
+  const fetchExchangeRate = async () => {
+      try {
+          setLoadingRate(true);
+          const response = await api.get('/settings/exchange-rate');
+          setExchangeRate(response.data.rate);
+      } catch (error) {
+          console.error('Erreur chargement taux:', error);
+      } finally {
+          setLoadingRate(false);
+      }
+  };
+
+  const saveExchangeRate = async () => {
+      try {
+          setSavingRate(true);
+          await api.post('/settings/exchange-rate', { rate: exchangeRate });
+          setMessage({ type: 'success', text: 'Taux de change mis à jour avec succès.' });
+      } catch (error) {
+          console.error('Erreur sauvegarde taux:', error);
+          setMessage({ type: 'error', text: 'Erreur lors de la mise à jour du taux.' });
+      } finally {
+          setSavingRate(false);
+      }
+  };
 
   const fetchLogo = async () => {
     try {
@@ -147,6 +178,46 @@ const SettingsPage: React.FC = () => {
           {message.text}
         </Alert>
       )}
+
+      {/* Exchange Rate Section */}
+      <Paper sx={{ p: 3, mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+            Configuration Financière
+            </Typography>
+        </Box>
+        <Divider sx={{ mb: 3 }} />
+        
+        {loadingRate ? (
+            <CircularProgress />
+        ) : (
+            <Grid container spacing={3} alignItems="center">
+                <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                        label="Taux de Change (USD -> CDF)"
+                        type="number"
+                        fullWidth
+                        value={exchangeRate}
+                        onChange={(e) => setExchangeRate(parseFloat(e.target.value))}
+                        InputProps={{
+                            startAdornment: <InputAdornment position="start">1 USD =</InputAdornment>,
+                            endAdornment: <InputAdornment position="end">CDF</InputAdornment>,
+                        }}
+                    />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                    <Button 
+                        variant="contained" 
+                        onClick={saveExchangeRate}
+                        disabled={savingRate}
+                        startIcon={<Save />}
+                    >
+                        {savingRate ? 'Sauvegarde...' : 'Mettre à jour le taux'}
+                    </Button>
+                </Grid>
+            </Grid>
+        )}
+      </Paper>
 
       {/* Workflow Settings Section */}
       <Paper sx={{ p: 3, mb: 4 }}>

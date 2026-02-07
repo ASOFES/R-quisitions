@@ -42,6 +42,12 @@ router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => 
       return res.status(400).json({ error: 'Ce nom d\'utilisateur existe déjà' });
     }
 
+    // Vérifier si l'email existe déjà
+    const existingEmail = await dbUtils.get('SELECT id FROM users WHERE email = ?', [email]);
+    if (existingEmail) {
+      return res.status(400).json({ error: 'Cet email est déjà utilisé' });
+    }
+
     // Hasher le mot de passe
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -78,6 +84,14 @@ router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) =
       const usernameCheck = await dbUtils.get('SELECT id FROM users WHERE username = ? AND id != ?', [username, id]);
       if (usernameCheck) {
         return res.status(400).json({ error: 'Ce nom d\'utilisateur existe déjà' });
+      }
+    }
+
+    // Vérifier si le nouvel email est déjà utilisé
+    if (email) {
+      const emailCheck = await dbUtils.get('SELECT id FROM users WHERE email = ? AND id != ?', [email, id]);
+      if (emailCheck) {
+        return res.status(400).json({ error: 'Cet email est déjà utilisé' });
       }
     }
 

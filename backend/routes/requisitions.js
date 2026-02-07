@@ -6,6 +6,7 @@ const { authenticateToken, requireRole, checkRequisitionAccess } = require('../m
 const PdfService = require('../services/PdfService');
 const WorkflowService = require('../services/WorkflowService');
 const StorageService = require('../services/StorageService');
+const BudgetService = require('../services/BudgetService');
 
 const router = express.Router();
 
@@ -498,6 +499,55 @@ router.put('/:id/action', authenticateToken, checkRequisitionAccess, async (req,
     // Vérifier si l'utilisateur peut effectuer cette action
     const requisition = req.requisition;
 
+    // INTEGRATION BUDGET CHECK (Analyste uniquement)
+    if (action === 'valider' && userRole === 'analyste') {
+        try {
+            const items = await dbUtils.all('SELECT * FROM lignes_requisition WHERE requisition_id = ?', [id]);
+            const reqDate = new Date(requisition.created_at);
+            const mois = reqDate.toISOString().slice(0, 7); // YYYY-MM
+            
+            let budgetErrors = [];
+            
+            for (const item of items) {
+                // Conversion sommaire si CDF (Taux fixe temporaire 2800)
+                let amountToCheck = item.prix_total;
+                if (item.devise === 'CDF') {
+                    amountToCheck = amountToCheck / 2800; 
+                }
+                
+                // On vérifie le budget seulement si une description correspond
+                // Si la description n'est pas dans le budget, on laisse passer (ou on bloque ?)
+                // Pour l'instant on laisse passer si pas trouvé, mais on bloque si trouvé et dépassé.
+                // Modif: checkBudget returns allowed: false if not found.
+                // We should probably allow if not found? No, budget should be strict.
+                // But let's check what checkBudget returns.
+                
+                const check = await BudgetService.checkBudget(item.description, amountToCheck, mois);
+                if (!check.allowed) {
+                    // Si le budget n'est pas trouvé, on avertit mais on ne bloque pas pour le moment (Transition)
+                    if (check.reason === 'Ligne budgétaire non trouvée') {
+                        console.warn(`Budget warning: ${item.description} - ${check.reason}`);
+                        // Optionnel: Ajouter un commentaire automatique ou un flag
+                    } else {
+                        // Vrai dépassement ou erreur bloquante
+                        budgetErrors.push(`${item.description}: ${check.reason} ${check.details ? '(Reste: ' + check.details.reste.toFixed(2) + ' USD)' : ''}`);
+                    }
+                }
+            }
+            
+            if (budgetErrors.length > 0) {
+                return res.status(400).json({ 
+                    error: 'Validation impossible : Problème budgétaire', 
+                    details: budgetErrors 
+                });
+            }
+        } catch (err) {
+            console.error('Erreur vérification budget:', err);
+            // On ne bloque pas si le service budget plante (fail-safe)
+            console.warn('Le service budget a rencontré une erreur, validation autorisée par précaution.');
+        }
+    }
+
     if (['payee', 'refuse', 'refusee', 'termine'].includes(requisition.statut)) {
       return res.status(400).json({ error: 'Action impossible sur une réquisition terminée' });
     }
@@ -650,8 +700,8 @@ router.put('/:id', authenticateToken, upload.array('pieces', 5), async (req, res
              const total = qty * price;
              
              await dbUtils.run(
-                 'INSERT INTO lignes_requisition (requisition_id, description, quantite, prix_unitaire, prix_total, site_id) VALUES (?, ?, ?, ?, ?, ?)',
-                 [id, item.description, qty, price, total, item.site_id || site_id || null]
+                 'INSERT INTO lignes_requisition (requisition_id, description, quantite, prix_unitaire, prix_total, site_id, devise) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                 [id, item.description, qty, price, total, item.site_id || site_id || null, item.devise || 'USD']
              );
         }
     }

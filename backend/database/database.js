@@ -164,7 +164,9 @@ function initializeDatabasePostgres() {
                         'ALTER TABLE requisitions ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(id)',
                         'ALTER TABLE requisitions ADD COLUMN IF NOT EXISTS mode_paiement VARCHAR(20)',
                         'ALTER TABLE users ADD COLUMN IF NOT EXISTS zone_id INTEGER REFERENCES zones(id)',
-                        'ALTER TABLE lignes_requisition ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(id)'
+                        'ALTER TABLE lignes_requisition ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(id)',
+                        'CREATE TABLE IF NOT EXISTS app_settings (key VARCHAR(50) PRIMARY KEY, value TEXT, description TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)',
+                        "INSERT INTO app_settings (key, value, description) VALUES ('exchange_rate', '2800', 'Taux de change USD/CDF') ON CONFLICT DO NOTHING"
                     ];
 
                     // Exécuter les migrations en séquence
@@ -266,12 +268,21 @@ function runSqliteMigrations() {
           niveau VARCHAR(50) PRIMARY KEY,
           delai_minutes INTEGER DEFAULT 0,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS app_settings (
+          key VARCHAR(50) PRIMARY KEY,
+          value TEXT,
+          description TEXT,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`
     ];
 
     extraTables.forEach(tableSql => {
         dbInstance.run(tableSql, () => {});
     });
+
+    // Default settings
+    dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value, description) VALUES ('exchange_rate', '2800', 'Taux de change USD/CDF')", () => {});
     
     // Default zones
     dbInstance.get('SELECT count(*) as count FROM zones', [], (err, row) => {

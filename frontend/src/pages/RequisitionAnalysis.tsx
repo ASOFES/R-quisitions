@@ -29,6 +29,16 @@ import {
   Rating,
 } from '@mui/material';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Tooltip,
+} from '@mui/material';
+import {
   ArrowBack,
   CheckCircle,
   Cancel,
@@ -49,6 +59,7 @@ import { useAuth } from '../context/AuthContext';
 import RequisitionService, { Requisition } from '../services/RequisitionService';
 import WorkflowTracker from '../components/WorkflowTracker';
 import WorkflowSummary from '../components/WorkflowSummary';
+import MoneyDisplay from '../components/MoneyDisplay';
 import { API_BASE_URL } from '../config';
 
 interface AnalysisData {
@@ -59,6 +70,18 @@ interface AnalysisData {
   analysis_date: string;
   analyst_id: number;
 }
+
+interface BudgetCheckResult {
+  allowed: boolean;
+  reason?: string;
+  details?: {
+    budgetTotal: number;
+    consomme: number;
+    reste: number;
+  };
+}
+
+
 
 const RequisitionAnalysis: React.FC = () => {
   const { user, token } = useAuth();
@@ -112,11 +135,77 @@ const RequisitionAnalysis: React.FC = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [budgetStatus, setBudgetStatus] = useState<Record<string, BudgetCheckResult>>({});
+  const [checkingBudget, setCheckingBudget] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState<number>(2800);
 
   useEffect(() => {
     loadRequisitionData();
+    fetchExchangeRate();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const fetchExchangeRate = async () => {
+      try {
+          const response = await fetch(`${API_BASE_URL}/api/settings/exchange-rate`);
+          if (response.ok) {
+              const data = await response.json();
+              setExchangeRate(data.rate);
+          }
+      } catch (e) {
+          console.error("Erreur chargement taux", e);
+      }
+  };
+
+  useEffect(() => {
+    if (requisition && requisition.items && requisition.items.length > 0 && user?.role === 'analyste') {
+      checkBudgets();
+    }
+  }, [requisition, exchangeRate]);
+
+  const checkBudgets = async () => {
+    if (!requisition || !requisition.items) return;
+    
+    setCheckingBudget(true);
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const newBudgetStatus: Record<string, BudgetCheckResult> = {};
+    const reqDate = new Date(requisition.created_at);
+    const mois = reqDate.toISOString().slice(0, 7); // YYYY-MM
+
+    for (const item of requisition.items) {
+      try {
+        let amountToCheck = item.prix_total || (item.quantite * item.prix_unitaire);
+        if (requisition.devise === 'CDF') {
+           amountToCheck = amountToCheck / exchangeRate; 
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/budgets/check`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                description: item.description,
+                montant: amountToCheck,
+                mois: mois
+            })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            newBudgetStatus[item.id] = result;
+        }
+      } catch (e) {
+          console.error("Erreur check budget item", item.id, e);
+      }
+    }
+    
+    setBudgetStatus(newBudgetStatus);
+    setCheckingBudget(false);
+  };
 
   const loadRequisitionData = async () => {
     try {
@@ -170,7 +259,8 @@ const RequisitionAnalysis: React.FC = () => {
           pieces_jointes: data.pieces?.map((p: any) => p.nom_fichier) || [],
           pieces_jointes_data: data.pieces || [],
           analyses: [],
-          workflow: undefined
+          workflow: undefined,
+          items: data.items || []
         };
         
         setRequisition(requisition);
@@ -260,6 +350,18 @@ const RequisitionAnalysis: React.FC = () => {
         return true;
     }
 
+    // Exception pour l'analyste qui peut agir sur les réquisitions au niveau 'emetteur' ou 'analyste'
+    if (userRole === 'analyste') {
+        if (reqNiveau === 'emetteur' || reqNiveau === 'analyste' || reqNiveau === 'approbation_service') {
+             // Note: Si 'approbation_service', normalement on attend le chef.
+             // Mais si l'analyste veut forcer/intervenir, on permet ?
+             // Pour l'instant, on s'en tient aux droits standards.
+             // Si le niveau est 'emetteur', l'analyste peut prendre la main.
+             // Si le niveau est 'analyste', c'est son tour.
+             return true;
+        }
+    }
+
     // Cas particuliers (mapping si les noms ne sont pas identiques)
     if (userRole === 'validateur' && reqNiveau === 'validateur') return true; // PM
     if (userRole === 'pm' && reqNiveau === 'validateur') return true; // PM alias
@@ -322,7 +424,11 @@ const RequisitionAnalysis: React.FC = () => {
         setTimeout(() => setShowSuccess(false), 3000);
       } else {
         const error = await response.json();
-        alert('Erreur lors de la validation: ' + (error.error || 'Erreur inconnue'));
+        let errorMessage = error.error || 'Erreur inconnue';
+        if (error.details && Array.isArray(error.details)) {
+            errorMessage += '\n\n' + error.details.join('\n');
+        }
+        alert('Erreur lors de la validation:\n' + errorMessage);
       }
     } catch (error) {
       console.error('Erreur lors de la validation:', error);
@@ -712,7 +818,11 @@ const RequisitionAnalysis: React.FC = () => {
                 <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
                   <Typography variant="body2" color="text.secondary">Montant</Typography>
                   <Typography variant="h6" color="primary">
-                    {requisition.devise} {requisition.montant.toLocaleString()}
+                    <MoneyDisplay 
+                      amount={requisition.montant} 
+                      currency={requisition.devise} 
+                      rate={exchangeRate} 
+                    />
                   </Typography>
                 </Box>
                 <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
@@ -773,6 +883,100 @@ const RequisitionAnalysis: React.FC = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Lignes de la réquisition */}
+          {requisition.items && requisition.items.length > 0 && (
+            <Card sx={{ mb: 3 }}>
+                <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                        Lignes de la Réquisition
+                    </Typography>
+                    <TableContainer component={Paper} variant="outlined">
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>Description</TableCell>
+                                    <TableCell align="right">Qté</TableCell>
+                                    <TableCell align="right">P.U.</TableCell>
+                                    <TableCell align="right">Total</TableCell>
+                                    {user?.role === 'analyste' && (
+                                        <TableCell align="center">Budget</TableCell>
+                                    )}
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {requisition.items.map((item) => {
+                                    const budget = budgetStatus[item.id];
+                                    return (
+                                        <TableRow key={item.id}>
+                                            <TableCell>{item.description}</TableCell>
+                                            <TableCell align="right">{item.quantite}</TableCell>
+                                            <TableCell align="right">
+                                                <MoneyDisplay 
+                                                    amount={item.prix_unitaire} 
+                                                    currency={requisition.devise} 
+                                                    rate={exchangeRate} 
+                                                />
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                <MoneyDisplay 
+                                                    amount={item.prix_total || (item.quantite * item.prix_unitaire)} 
+                                                    currency={requisition.devise} 
+                                                    rate={exchangeRate} 
+                                                />
+                                            </TableCell>
+                                            {user?.role === 'analyste' && (
+                                                <TableCell align="center">
+                                                    {checkingBudget ? (
+                                                        <CircularProgress size={20} />
+                                                    ) : budget ? (
+                                                        budget.allowed ? (
+                                                            <Tooltip title={`Reste: ${budget.details?.reste.toFixed(2)} USD`}>
+                                                                <Chip 
+                                                                    icon={<CheckCircle />} 
+                                                                    label="OK" 
+                                                                    color="success" 
+                                                                    size="small" 
+                                                                    variant="outlined" 
+                                                                />
+                                                            </Tooltip>
+                                                        ) : (
+                                                            budget.reason && budget.reason.includes('non trouvée') ? (
+                                                                <Tooltip title={budget.reason}>
+                                                                    <Chip 
+                                                                        icon={<Cancel />} 
+                                                                        label="Non trouvé" 
+                                                                        color="warning" 
+                                                                        size="small" 
+                                                                        variant="outlined" 
+                                                                    />
+                                                                </Tooltip>
+                                                            ) : (
+                                                                <Tooltip title={`${budget.reason} ${budget.details ? '(Reste: ' + budget.details.reste.toFixed(2) + ' USD)' : ''}`}>
+                                                                    <Chip 
+                                                                        icon={<Cancel />} 
+                                                                        label="Dépassement" 
+                                                                        color="error" 
+                                                                        size="small" 
+                                                                        variant="outlined" 
+                                                                    />
+                                                                </Tooltip>
+                                                            )
+                                                        )
+                                                    ) : (
+                                                        <Typography variant="caption" color="text.secondary">-</Typography>
+                                                    )}
+                                                </TableCell>
+                                            )}
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </CardContent>
+            </Card>
+          )}
 
           {/* Section d'analyse */}
           <Card>

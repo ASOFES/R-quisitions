@@ -63,6 +63,7 @@ import { useNavigate } from 'react-router-dom';
 import RequisitionService, { Requisition } from '../services/RequisitionService';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config';
+import MoneyDisplay from '../components/MoneyDisplay';
 
 const RequisitionsList: React.FC = () => {
   const navigate = useNavigate();
@@ -98,6 +99,22 @@ const RequisitionsList: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [compilingPdf, setCompilingPdf] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [exchangeRate, setExchangeRate] = useState<number>(2800);
+
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/settings/exchange-rate`);
+            if (response.ok) {
+                const data = await response.json();
+                setExchangeRate(data.rate);
+            }
+        } catch (e) {
+            console.error("Erreur chargement taux", e);
+        }
+    };
+    fetchExchangeRate();
+  }, []);
 
   useEffect(() => {
     // Fetch Logo
@@ -1062,7 +1079,11 @@ const RequisitionsList: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" fontWeight={600}>
-                        {req.devise} {req.montant.toLocaleString()}
+                        <MoneyDisplay 
+                            amount={req.montant} 
+                            currency={req.devise} 
+                            rate={exchangeRate} 
+                        />
                       </Typography>
                     </TableCell>
                     <TableCell>

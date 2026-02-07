@@ -114,4 +114,48 @@ router.post('/logo', authenticateToken, requireRole(['admin']), upload.single('l
     }
 });
 
+// --- Exchange Rate Routes ---
+
+// Get exchange rate (public or authenticated)
+router.get('/exchange-rate', async (req, res) => {
+    try {
+        const setting = await dbUtils.get('SELECT value FROM app_settings WHERE key = ?', ['exchange_rate']);
+        const rate = setting ? parseFloat(setting.value) : 2800;
+        res.json({ rate });
+    } catch (error) {
+        console.error('Erreur récupération taux de change:', error);
+        // Fallback default
+        res.json({ rate: 2800 });
+    }
+});
+
+// Update exchange rate
+router.post('/exchange-rate', authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+        const { rate } = req.body;
+        if (!rate || isNaN(rate)) {
+            return res.status(400).json({ error: 'Taux invalide' });
+        }
+        
+        // Universal Upsert: Try Update first
+        const updateResult = await dbUtils.run(
+            'UPDATE app_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?',
+            [rate.toString(), 'exchange_rate']
+        );
+
+        if (updateResult.changes === 0) {
+            // If no update, Insert
+            await dbUtils.run(
+                'INSERT INTO app_settings (key, value, description) VALUES (?, ?, ?)',
+                ['exchange_rate', rate.toString(), 'Taux de change USD/CDF']
+            );
+        }
+        
+        res.json({ message: 'Taux de change mis à jour avec succès', rate });
+    } catch (error) {
+        console.error('Erreur mise à jour taux de change:', error);
+        res.status(500).json({ error: 'Erreur mise à jour taux de change' });
+    }
+});
+
 module.exports = router;

@@ -1,4 +1,5 @@
 const { dbUtils } = require('../database/database');
+const BudgetService = require('./BudgetService');
 
 const WORKFLOW_STEPS = {
   'emetteur': { valider: 'analyste', modifier: 'emetteur', refuser: 'annule' },
@@ -141,6 +142,38 @@ class WorkflowService {
                          [requisitionId, totalUsd, totalCdf, commentaire || 'Paiement effectué', userId]);
                  } else if (existingPayment) {
                      console.warn(`Paiement déjà existant pour réquisition ${requisitionId} via WorkflowService. Skip insert.`);
+                 }
+
+                 // --- MISE A JOUR BUDGET ---
+                 try {
+                     const items = await dbUtils.all('SELECT * FROM lignes_requisition WHERE requisition_id = ?', [requisitionId]);
+                     if (items && items.length > 0) {
+                         // Déterminer la devise principale (Logique simplifiée: si CDF > 0 et USD = 0 -> CDF, sinon USD)
+                         const isCdfMain = (requisition.montant_cdf > 0 && (!requisition.montant_usd || requisition.montant_usd === 0));
+                         
+                         let rate = 2800;
+                         if (isCdfMain) {
+                             const rateSetting = await dbUtils.get('SELECT value FROM app_settings WHERE key = ?', ['exchange_rate']);
+                             if (rateSetting) rate = parseFloat(rateSetting.value);
+                         }
+
+                         const reqDate = new Date(requisition.created_at);
+                         const mois = reqDate.toISOString().slice(0, 7); // YYYY-MM
+
+                         for (const item of items) {
+                             let montantConsomme = item.prix_total || (item.quantite * item.prix_unitaire);
+                             
+                             if (isCdfMain) {
+                                 montantConsomme = montantConsomme / rate;
+                             }
+                             
+                             // Update budget consumption
+                             await BudgetService.updateConsommation(item.description, montantConsomme, mois);
+                         }
+                         console.log(`Budget mis à jour pour réquisition ${requisition.numero}`);
+                     }
+                 } catch (budgetErr) {
+                     console.error('Erreur mise à jour budget lors du paiement:', budgetErr);
                  }
              }
              
