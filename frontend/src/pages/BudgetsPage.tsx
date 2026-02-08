@@ -178,6 +178,16 @@ const BudgetsPage: React.FC = () => {
     return null;
   };
 
+  const formatCurrencySafe = (amount: number | undefined | null, currency: string = 'USD') => {
+    const val = Number(amount || 0);
+    // Use fr-FR for formatting but replace special spaces with standard space to avoid PDF font issues
+    return val.toLocaleString('fr-FR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+        useGrouping: true
+    }).replace(/[\u202F\u00A0]/g, ' ') + ' ' + currency;
+  };
+
   const handleExportPDF = async () => {
     const doc = new jsPDF();
     const logoData = await getLogoBuffer();
@@ -210,10 +220,10 @@ const BudgetsPage: React.FC = () => {
             item.demandeur,
             item.service,
             item.ligne_budgetaire,
-            `${Number(item.montant).toLocaleString()} ${item.devise}`,
-            `${Number(item.montant_prevu || 0).toLocaleString()} USD`,
-            `${Number(item.montant_consomme || 0).toLocaleString()} USD`,
-            `${reste.toLocaleString()} USD`,
+            formatCurrencySafe(item.montant, item.devise),
+            formatCurrencySafe(item.montant_prevu),
+            formatCurrencySafe(item.montant_consomme),
+            formatCurrencySafe(reste),
             item.statut
         ];
         tableRows.push(rowData);
@@ -378,9 +388,9 @@ const BudgetsPage: React.FC = () => {
         const rowData = [
             item.description,
             item.classification || '-',
-            `${Number(item.montant_prevu || 0).toLocaleString()} USD`,
-            `${Number(item.montant_consomme || 0).toLocaleString()} USD`,
-            `${solde.toLocaleString()} USD`,
+            formatCurrencySafe(item.montant_prevu),
+            formatCurrencySafe(item.montant_consomme),
+            formatCurrencySafe(solde),
             `${percent.toFixed(0)}%`
         ];
         tableRows.push(rowData);

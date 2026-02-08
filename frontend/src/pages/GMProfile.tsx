@@ -136,6 +136,15 @@ const GMProfile: React.FC = () => {
     setEditMode(false);
   };
 
+  const formatCurrencySafe = (amount: number | undefined | null, currency: string = 'USD') => {
+    const val = Number(amount || 0);
+    return val.toLocaleString('fr-FR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+        useGrouping: true
+    }).replace(/[\u202F\u00A0]/g, ' ') + ' ' + currency;
+  };
+
   const handleTestPDF = () => {
     const doc = new jsPDF();
     const today = new Date().toLocaleDateString();
@@ -335,7 +344,7 @@ const GMProfile: React.FC = () => {
         ['Zone:', (req as any).emetteur_zone || 'N/A'],
         ['Service:', (req as any).service_nom || 'N/A'],
         ['Objet:', req.objet],
-        ['Montant:', `${req.montant.toLocaleString()} ${req.devise}`],
+        ['Montant:', formatCurrencySafe(req.montant, req.devise)],
         ['Urgence:', req.urgence.toUpperCase()],
         ['Statut Actuel:', req.statut.toUpperCase()]
       ];
