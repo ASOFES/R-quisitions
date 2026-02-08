@@ -233,6 +233,13 @@ const FundsPage: React.FC = () => {
       headStyles: { fillColor: [66, 66, 66] }
     });
 
+    const pageCount = doc.getNumberOfPages();
+    for(let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text('Page ' + i + ' / ' + pageCount, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10, { align: 'right' });
+    }
+
     doc.save(`mouvements_tresorerie_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 

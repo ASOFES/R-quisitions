@@ -352,12 +352,13 @@ const RequisitionAnalysis: React.FC = () => {
 
     // Exception pour l'analyste qui peut agir sur les réquisitions au niveau 'emetteur' ou 'analyste'
     if (userRole === 'analyste') {
-        if (reqNiveau === 'emetteur' || reqNiveau === 'analyste' || reqNiveau === 'approbation_service') {
+        if (reqNiveau === 'emetteur' || reqNiveau === 'analyste' || reqNiveau === 'approbation_service' || reqNiveau === 'validation_bordereau') {
              // Note: Si 'approbation_service', normalement on attend le chef.
              // Mais si l'analyste veut forcer/intervenir, on permet ?
              // Pour l'instant, on s'en tient aux droits standards.
              // Si le niveau est 'emetteur', l'analyste peut prendre la main.
              // Si le niveau est 'analyste', c'est son tour.
+             // Si le niveau est 'validation_bordereau', c'est l'étape d'alignement.
              return true;
         }
     }

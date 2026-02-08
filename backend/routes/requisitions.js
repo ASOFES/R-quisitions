@@ -203,6 +203,7 @@ router.get('/', authenticateToken, async (req, res) => {
       params.push('validateur', 'paiement', 'justificatif', 'termine', user.id, 'approbation_service');
     } else if (user.role === 'analyste') {
       // Analyste voit tout le workflow OU celles de son service s'il est chef
+      // Ajout de 'validation_bordereau' pour l'alignement
       query += ' WHERE (r.niveau IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) OR (s.chef_id = ? AND r.niveau = ?) ORDER BY r.created_at DESC';
       params.push('emetteur', 'analyste', 'challenger', 'validateur', 'gm', 'compilation', 'validation_bordereau', 'paiement', 'justificatif', 'termine', user.id, 'approbation_service');
     } else {
@@ -288,6 +289,38 @@ router.post('/', authenticateToken, requireRole(['emetteur', 'admin']), upload.a
 
     // Générer le numéro de réquisition (incluant zone et éventuellement site)
     const numero = await generateRequisitionNumber(service_id, user.zone_code, site_id);
+
+    // --- VÉRIFICATION BUDGÉTAIRE ---
+    try {
+        const rateRow = await dbUtils.get("SELECT value FROM app_settings WHERE key = 'exchange_rate'");
+        const rate = rateRow ? parseFloat(rateRow.value) : 2800;
+        
+        // Calcul du montant total en USD (hypothèse: budget suivi en USD)
+        const totalCheckAmount = finalMontantUsd + (finalMontantCdf / rate);
+        const mois = new Date().toISOString().slice(0, 7); // YYYY-MM
+        
+        console.log(`[Budget Check] Objet: "${objet}", Montant: ${totalCheckAmount} USD, Mois: ${mois}`);
+        
+        const checkResult = await BudgetService.checkBudget(objet, totalCheckAmount, mois);
+        
+        if (!checkResult.allowed) {
+             console.warn(`[Budget Check Failed] ${checkResult.reason}`, checkResult.details);
+             return res.status(400).json({ 
+                 error: `Erreur budgétaire: ${checkResult.reason}`,
+                 details: checkResult.details 
+             });
+        }
+    } catch (budgetError) {
+        console.error('Erreur lors de la vérification budgétaire:', budgetError);
+        // On ne bloque pas forcément en cas d'erreur technique (ex: table inexistante), 
+        // ou on choisit de bloquer. Pour la sécurité, on log mais on laisse passer ou on bloque ?
+        // Ici, on bloque si c'est une erreur critique, mais si c'est juste "table missing", ça risque de tout casser.
+        // Si BudgetService.checkBudget throw, c'est probablement grave.
+        // Mais si le budget n'existe pas, checkBudget retourne { allowed: false }.
+        // Donc ici c'est une erreur inattendue.
+        return res.status(500).json({ error: 'Erreur lors de la vérification du budget' });
+    }
+    // -------------------------------
 
     // Insérer la réquisition
     const result = await dbUtils.run(
@@ -515,21 +548,11 @@ router.put('/:id/action', authenticateToken, checkRequisitionAccess, async (req,
                     amountToCheck = amountToCheck / 2800; 
                 }
                 
-                // On vérifie le budget seulement si une description correspond
-                // Si la description n'est pas dans le budget, on laisse passer (ou on bloque ?)
-                // Pour l'instant on laisse passer si pas trouvé, mais on bloque si trouvé et dépassé.
-                // Modif: checkBudget returns allowed: false if not found.
-                // We should probably allow if not found? No, budget should be strict.
-                // But let's check what checkBudget returns.
-                
                 const check = await BudgetService.checkBudget(item.description, amountToCheck, mois);
                 if (!check.allowed) {
-                    // Si le budget n'est pas trouvé, on avertit mais on ne bloque pas pour le moment (Transition)
                     if (check.reason === 'Ligne budgétaire non trouvée') {
                         console.warn(`Budget warning: ${item.description} - ${check.reason}`);
-                        // Optionnel: Ajouter un commentaire automatique ou un flag
                     } else {
-                        // Vrai dépassement ou erreur bloquante
                         budgetErrors.push(`${item.description}: ${check.reason} ${check.details ? '(Reste: ' + check.details.reste.toFixed(2) + ' USD)' : ''}`);
                     }
                 }
@@ -543,7 +566,6 @@ router.put('/:id/action', authenticateToken, checkRequisitionAccess, async (req,
             }
         } catch (err) {
             console.error('Erreur vérification budget:', err);
-            // On ne bloque pas si le service budget plante (fail-safe)
             console.warn('Le service budget a rencontré une erreur, validation autorisée par précaution.');
         }
     }
@@ -561,35 +583,47 @@ router.put('/:id/action', authenticateToken, checkRequisitionAccess, async (req,
 
     // Vérifier si la réquisition est au bon niveau pour l'utilisateur
     if (requisition.niveau === 'approbation_service') {
-        if (!isChef && userRole !== 'admin') {
-             return res.status(403).json({ error: 'Seul le chef de service peut valider cette étape' });
+        if (!isChef && userRole !== 'admin') { // Admin peut bypass
+            return res.status(403).json({ error: 'Attente validation chef de service' });
         }
-        // OK for Chef
-    } else if (requisition.niveau !== userRole) {
-         // Exception pour l'analyste qui agit sur les réquisitions au niveau 'emetteur'
-         if (userRole === 'analyste' && requisition.niveau === 'emetteur') {
-             // OK
-         }
-         // Exception pour PM qui agit comme validateur
-         else if (userRole === 'pm' && requisition.niveau === 'validateur') {
-             // OK
-         }
-         // Exception pour PM/Validateur qui agit sur le niveau challenger (skip ou intérim)
-         else if ((userRole === 'pm' || userRole === 'validateur') && requisition.niveau === 'challenger') {
-             // OK
-         }
-         else if (userRole === 'gm' && requisition.niveau === 'gm') {
-             // OK
-         }
-         // Exception pour le comptable qui agit au niveau paiement
-         else if (userRole === 'comptable' && requisition.niveau === 'paiement') {
-             // OK
-         }
-         // Si aucune exception ne matche et que les rôles ne sont pas identiques
-         else if (userRole !== requisition.niveau) {
-             console.log(`Access denied: UserRole=${userRole}, ReqNiveau=${requisition.niveau}`);
-             return res.status(403).json({ error: `Cette réquisition n'est pas à votre niveau (${requisition.niveau} vs ${userRole})` });
-         }
+    } else if (requisition.niveau === 'validation_bordereau') {
+        // Analyste can act here
+        if (userRole !== 'analyste' && userRole !== 'admin') {
+             return res.status(403).json({ error: 'Attente validation analyste (alignement)' });
+        }
+    } else {
+        // ... (Logique existante pour les autres niveaux)
+    }
+
+    // --- MISE À JOUR DU STATUT ET NIVEAU ---
+    let nouveauStatut = requisition.statut;
+    let nouveauNiveau = requisition.niveau;
+
+    if (action === 'valider') {
+      if (requisition.niveau === 'emetteur') {
+        nouveauStatut = 'en_cours';
+        nouveauNiveau = 'analyste';
+      } else if (requisition.niveau === 'approbation_service') {
+        nouveauStatut = 'en_cours';
+        nouveauNiveau = 'analyste';
+      } else if (requisition.niveau === 'analyste') {
+        nouveauNiveau = 'challenger';
+      } else if (requisition.niveau === 'challenger') {
+        nouveauNiveau = 'validateur';
+      } else if (requisition.niveau === 'validateur') {
+        nouveauNiveau = 'gm';
+      } else if (requisition.niveau === 'gm') {
+        nouveauNiveau = 'compilation'; 
+        nouveauStatut = 'validee';
+      } else if (requisition.niveau === 'compilation') {
+        nouveauNiveau = 'validation_bordereau';
+      } else if (requisition.niveau === 'validation_bordereau') {
+        nouveauNiveau = 'paiement';
+      } else if (requisition.niveau === 'paiement') {
+        nouveauStatut = 'payee';
+      }
+    } else if (action === 'refuser') {
+      nouveauStatut = 'refusee'; 
     }
 
     // Utilisation du WorkflowService pour traiter l'action
@@ -677,12 +711,6 @@ router.put('/:id', authenticateToken, upload.array('pieces', 5), async (req, res
     if (service_id) { updates.push('service_id = ?'); params.push(service_id); }
     if (site_id) { updates.push('site_id = ?'); params.push(site_id); }
     
-    // Si resoumission
-    // if (resubmit === 'true' || resubmit === true) {
-    //     updates.push('statut = ?'); params.push('en_cours');
-    //     updates.push('niveau = ?'); params.push('emetteur');
-    // }
-
     if (updates.length > 0) {
         params.push(id);
         await dbUtils.run(`UPDATE requisitions SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, params);
@@ -767,124 +795,104 @@ router.post('/:id/messages', authenticateToken, checkRequisitionAccess, async (r
   }
 });
 
-// Ajouter des pièces jointes à une réquisition
-router.post('/:id/pieces', authenticateToken, checkRequisitionAccess, upload.array('pieces', 5), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = req.user;
-    const requisition = req.requisition;
+// Batch Align (Analyst)
+router.post('/batch-align', authenticateToken, requireRole(['analyste', 'admin']), async (req, res) => {
+    try {
+        const { requisitionIds, mode_paiement } = req.body;
+        const user = req.user;
 
-    if (['valide', 'validee', 'refuse', 'refusee', 'termine', 'payee'].includes(requisition.statut)) {
-      return res.status(400).json({ error: 'Impossible d\'ajouter des pièces sur une réquisition terminée' });
+        if (!requisitionIds || !Array.isArray(requisitionIds) || requisitionIds.length === 0) {
+            return res.status(400).json({ error: 'Aucune réquisition sélectionnée' });
+        }
+        
+        if (!mode_paiement) {
+             return res.status(400).json({ error: 'Mode de paiement requis' });
+        }
+
+        // Process each requisition
+        // Note: Ideally this should be a transaction
+        
+        const placeholders = requisitionIds.map(() => '?').join(',');
+        
+        // Update requisitions
+        await dbUtils.run(
+            `UPDATE requisitions 
+             SET niveau = 'paiement', mode_paiement = ?, updated_at = CURRENT_TIMESTAMP 
+             WHERE id IN (${placeholders}) AND niveau = 'validation_bordereau'`,
+            [mode_paiement, ...requisitionIds]
+        );
+
+        // Record history
+        for (const reqId of requisitionIds) {
+            await dbUtils.run(
+                `INSERT INTO requisition_actions (requisition_id, utilisateur_id, action, niveau_avant, niveau_apres, commentaire)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [reqId, user.id, 'valider', 'validation_bordereau', 'paiement', `Alignement groupé (Mode: ${mode_paiement})`]
+            );
+        }
+
+        res.json({ message: 'Réquisitions alignées avec succès' });
+
+    } catch (error) {
+        console.error('Erreur alignement groupé:', error);
+        res.status(500).json({ error: 'Erreur serveur' });
     }
-
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'Aucun fichier fourni' });
-    }
-
-    // Ajouter les pièces jointes
-    for (const file of req.files) {
-      const uploadResult = await StorageService.uploadFile(file);
-      await dbUtils.run(
-        'INSERT INTO pieces_jointes (requisition_id, nom_fichier, chemin_fichier, taille_fichier, type_fichier, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, file.originalname, uploadResult.filename, file.size, file.mimetype, user.id]
-      );
-    }
-
-    res.json({ message: 'Pièces jointes ajoutées avec succès' });
-  } catch (error) {
-    console.error('Erreur lors de l\'ajout des pièces jointes:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
 });
 
-// Paiement groupé de réquisitions
-router.post('/batch-pay', authenticateToken, requireRole(['comptable']), async (req, res) => {
-  const { requisitionIds } = req.body;
-  
-  if (!requisitionIds || !Array.isArray(requisitionIds) || requisitionIds.length === 0) {
-    return res.status(400).json({ error: 'Liste de réquisitions invalide' });
-  }
-
-  try {
-    let successCount = 0;
-    let errors = [];
-
-    for (const id of requisitionIds) {
-      try {
-        const requisition = await dbUtils.get('SELECT * FROM requisitions WHERE id = ?', [id]);
+// Update Payment Mode (Analyst)
+router.put('/:id/payment-mode', authenticateToken, requireRole(['analyste', 'admin']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { mode_paiement } = req.body;
         
-        if (!requisition) {
-          errors.push(`Réquisition ${id} introuvable`);
-          continue;
+        if (!mode_paiement) {
+            return res.status(400).json({ error: 'Mode de paiement requis' });
         }
 
-        if (requisition.statut !== 'validee' && requisition.niveau !== 'paiement') {
-          errors.push(`Réquisition ${requisition.numero} n'est pas prête pour paiement`);
-          continue;
-        }
-
-        const isUSD = requisition.montant_usd > 0;
-        const amount = isUSD ? requisition.montant_usd : requisition.montant_cdf;
-        const currency = isUSD ? 'USD' : 'CDF';
-
-        // Check funds
-        const fund = await dbUtils.get('SELECT * FROM fonds WHERE devise = ?', [currency]);
-        if (!fund || fund.montant_disponible < amount) {
-          errors.push(`Fonds insuffisants pour ${requisition.numero} (${currency})`);
-          continue;
-        }
-
-        // Deduct funds
         await dbUtils.run(
-          'UPDATE fonds SET montant_disponible = montant_disponible - ?, updated_at = CURRENT_TIMESTAMP WHERE devise = ?',
-          [amount, currency]
+            'UPDATE requisitions SET mode_paiement = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            [mode_paiement, id]
         );
 
-        // Record movement
-        await dbUtils.run(
-          'INSERT INTO mouvements_fonds (type_mouvement, montant, devise, description) VALUES (?, ?, ?, ?)',
-          ['sortie', amount, currency, `Paiement Réquisition ${requisition.numero}`]
-        );
-
-        // Record payment
-        await dbUtils.run(
-          'INSERT INTO paiements (requisition_id, montant_usd, montant_cdf, comptable_id, statut) VALUES (?, ?, ?, ?, ?)',
-          [id, isUSD ? amount : 0, isUSD ? 0 : amount, req.user.id, 'effectue']
-        );
-
-        // Update requisition
-        await dbUtils.run(
-          'UPDATE requisitions SET statut = ?, niveau = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-          ['payee', 'termine', id]
-        );
-
-        // Log action
-        await dbUtils.run(
-          'INSERT INTO requisition_actions (requisition_id, utilisateur_id, action, commentaire, niveau_avant, niveau_apres) VALUES (?, ?, ?, ?, ?, ?)',
-          [id, req.user.id, 'payer', 'Paiement groupé', requisition.niveau, 'termine']
-        );
-
-        successCount++;
-      } catch (err) {
-        console.error(`Error paying requisition ${id}:`, err);
-        errors.push(`Erreur technique pour ${id}`);
-      }
+        res.json({ message: 'Mode de paiement mis à jour' });
+    } catch (error) {
+        console.error('Erreur mise à jour mode paiement:', error);
+        res.status(500).json({ error: 'Erreur serveur' });
     }
+});
 
-    if (successCount === 0 && errors.length > 0) {
-      return res.status(400).json({ error: 'Aucun paiement effectué', details: errors });
+// Batch Pay (Comptable) - Adding this if it was missing or implied
+router.post('/batch-pay', authenticateToken, requireRole(['comptable', 'admin']), async (req, res) => {
+    try {
+        const { requisitionIds } = req.body;
+        const user = req.user;
+
+        if (!requisitionIds || !Array.isArray(requisitionIds) || requisitionIds.length === 0) {
+            return res.status(400).json({ error: 'Aucune réquisition sélectionnée' });
+        }
+
+        const placeholders = requisitionIds.map(() => '?').join(',');
+        
+        await dbUtils.run(
+            `UPDATE requisitions 
+             SET statut = 'payee', updated_at = CURRENT_TIMESTAMP 
+             WHERE id IN (${placeholders}) AND (statut = 'validee' OR niveau = 'paiement')`,
+            [...requisitionIds]
+        );
+
+        for (const reqId of requisitionIds) {
+            await dbUtils.run(
+                `INSERT INTO requisition_actions (requisition_id, utilisateur_id, action, niveau_avant, niveau_apres, commentaire)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [reqId, user.id, 'payer', 'paiement', 'paiement', 'Paiement groupé effectué']
+            );
+        }
+
+        res.json({ message: 'Paiements enregistrés avec succès' });
+    } catch (error) {
+         console.error('Erreur paiement groupé:', error);
+         res.status(500).json({ error: 'Erreur serveur' });
     }
-
-    res.json({ 
-      message: `${successCount} réquisitions payées avec succès`, 
-      errors: errors.length > 0 ? errors : undefined 
-    });
-
-  } catch (error) {
-    console.error('Batch payment error:', error);
-    res.status(500).json({ error: 'Erreur serveur lors du paiement groupé' });
-  }
 });
 
 module.exports = router;

@@ -36,6 +36,7 @@ class BudgetService {
             const possibleDesc = ['description', 'libellé', 'libelle', 'item', 'nom', 'designation'];
             const possibleMontant = ['montant', 'budget', 'prevu', 'prévu', 'prix', 'cout', 'coût', 'valeur'];
             const possibleClass = ['classification', 'categorie', 'catégorie', 'type', 'classe'];
+            const possibleDate = ['mois', 'month', 'date', 'période', 'periode', 'année', 'annee'];
 
             for (let i = 0; i < Math.min(rawData.length, 20); i++) { // Check first 20 rows
                 const row = rawData[i];
@@ -53,6 +54,8 @@ class BudgetService {
                             foundMontant = true;
                         } else if (possibleClass.includes(val)) {
                             headerMap['classification'] = index;
+                        } else if (possibleDate.includes(val)) {
+                            headerMap['date'] = index;
                         }
                     }
                 });
@@ -80,12 +83,13 @@ class BudgetService {
                 const row = rawData[i];
                 if (!row || row.length === 0) continue;
 
-                let description, montant, classification;
+                let description, montant, classification, rowDateVal;
 
                 if (headerRowIndex !== -1) {
                     description = row[headerMap['description']];
                     montant = row[headerMap['montant']];
                     classification = headerMap['classification'] !== undefined ? row[headerMap['classification']] : 'Autre';
+                    rowDateVal = headerMap['date'] !== undefined ? row[headerMap['date']] : null;
                 } else {
                     // Fallback heuristique si pas de header trouvé
                     // On suppose Col 0 = Description, Col 1 = Montant (ou inversement si type number)
@@ -114,10 +118,38 @@ class BudgetService {
                         continue;
                     }
 
+                    // Détermination du Mois/Année cible
+                    let targetMois = mois;
+                    let targetAnnee = annee;
+
+                    if (rowDateVal) {
+                        let dateObj = null;
+                        if (typeof rowDateVal === 'number') {
+                            // Excel date to JS Date
+                            // Excel base date is 1900-01-01 (approx). 25569 is offset for 1970-01-01
+                            dateObj = new Date(Math.round((rowDateVal - 25569) * 86400 * 1000));
+                        } else if (typeof rowDateVal === 'string') {
+                            // Try parsing string
+                            dateObj = new Date(rowDateVal);
+                            if (isNaN(dateObj.getTime())) {
+                                // Try French format parsing "Janvier 2026" or "01/2026" ?
+                                // For now, basic parsing.
+                                dateObj = null;
+                            }
+                        }
+
+                        if (dateObj && !isNaN(dateObj.getTime())) {
+                            const y = dateObj.getFullYear();
+                            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                            targetMois = `${y}-${m}`;
+                            targetAnnee = y;
+                        }
+                    }
+
                     // Insertion ou Mise à jour (Upsert)
                     const existing = await dbUtils.get(
                         'SELECT id FROM budgets WHERE description = ? AND mois = ?',
-                        [description, mois]
+                        [description, targetMois]
                     );
 
                     if (existing) {
@@ -128,7 +160,7 @@ class BudgetService {
                     } else {
                         await dbUtils.run(
                             'INSERT INTO budgets (description, mois, annee, montant_prevu, classification) VALUES (?, ?, ?, ?, ?)',
-                            [description, mois, annee, cleanMontant, classification]
+                            [description, targetMois, targetAnnee, cleanMontant, classification]
                         );
                     }
                     count++;
@@ -188,9 +220,10 @@ class BudgetService {
          // Idéalement par ID, mais le lien Requisition <-> Budget n'est pas encore strict.
          // Pour l'instant on fait par description.
          
+         const cleanDescription = description ? description.trim() : '';
          const budget = await dbUtils.get(
             'SELECT id, montant_consomme FROM budgets WHERE description = ? AND mois = ?',
-            [description, mois]
+            [cleanDescription, mois]
         );
 
         if (budget) {
@@ -202,6 +235,49 @@ class BudgetService {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Répare les incohérences de budget au démarrage
+     */
+    static async fixBudgetInconsistencies() {
+        console.log('[BudgetService] Vérification de la cohérence budgétaire...');
+        try {
+            // 1. Marquer les réquisitions Payées/Terminées comme "budget_impacted"
+            await dbUtils.run("UPDATE requisitions SET budget_impacted = TRUE WHERE (statut = 'payee' OR statut = 'termine') AND (budget_impacted IS NULL OR budget_impacted = FALSE)");
+
+            // 2. Traiter les réquisitions Validées à régulariser
+            const requisitionsToFix = await dbUtils.all("SELECT * FROM requisitions WHERE statut = 'validee' AND (budget_impacted IS NULL OR budget_impacted = FALSE)");
+            
+            if (requisitionsToFix.length > 0) {
+                console.log(`[BudgetService] ${requisitionsToFix.length} réquisitions validées à régulariser.`);
+                
+                let rate = 2800;
+                const rateSetting = await dbUtils.get('SELECT value FROM app_settings WHERE key = ?', ['exchange_rate']);
+                if (rateSetting) rate = parseFloat(rateSetting.value);
+
+                for (const req of requisitionsToFix) {
+                    const items = await dbUtils.all('SELECT * FROM lignes_requisition WHERE requisition_id = ?', [req.id]);
+                    if (items && items.length > 0) {
+                        const isCdfMain = (req.montant_cdf > 0 && (!req.montant_usd || req.montant_usd === 0));
+                        const reqDate = new Date(req.created_at);
+                        const mois = reqDate.toISOString().slice(0, 7); // YYYY-MM
+
+                        for (const item of items) {
+                            let montantConsomme = item.prix_total || (item.quantite * item.prix_unitaire);
+                            if (isCdfMain) {
+                                montantConsomme = montantConsomme / rate;
+                            }
+                            await this.updateConsommation(item.description, montantConsomme, mois);
+                        }
+                    }
+                    await dbUtils.run('UPDATE requisitions SET budget_impacted = TRUE WHERE id = ?', [req.id]);
+                }
+                console.log('[BudgetService] Régularisation terminée.');
+            }
+        } catch (error) {
+            console.error('[BudgetService] Erreur lors de la vérification budgétaire:', error);
+        }
     }
 }
 

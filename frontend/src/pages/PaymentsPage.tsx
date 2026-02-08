@@ -392,6 +392,13 @@ const PaymentsPage: React.FC = () => {
       }
     });
 
+    const pageCount = doc.getNumberOfPages();
+    for(let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text('Page ' + i + ' / ' + pageCount, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10, { align: 'right' });
+    }
+
     doc.save(`requisitions_a_payer_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
@@ -482,6 +489,13 @@ const PaymentsPage: React.FC = () => {
         // Ajustement si nécessaire
       }
     });
+
+    const pageCount = doc.getNumberOfPages();
+    for(let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text('Page ' + i + ' / ' + pageCount, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10, { align: 'right' });
+    }
 
     doc.save(`historique_paiements_${new Date().toISOString().split('T')[0]}.pdf`);
   };

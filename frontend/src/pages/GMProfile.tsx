@@ -272,6 +272,13 @@ const GMProfile: React.FC = () => {
       doc.text('À CORRIGER', 108, yPos + 4);
     });
 
+    const pageCount = doc.getNumberOfPages();
+    for(let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text('Page ' + i + ' / ' + pageCount, 195, 285, { align: 'right' });
+    }
+
     doc.save(`TEST_requisitions_gm_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
@@ -385,6 +392,13 @@ const GMProfile: React.FC = () => {
       doc.rect(100, yPos, 5, 5);
       doc.text('À CORRIGER', 108, yPos + 4);
     });
+
+    const pageCount = doc.getNumberOfPages();
+    for(let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text('Page ' + i + ' / ' + pageCount, 195, 285, { align: 'right' });
+    }
 
     doc.save(`requisitions_gm_batch_${new Date().toISOString().slice(0, 10)}.pdf`);
   };

@@ -30,7 +30,8 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  Autocomplete
 } from '@mui/material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -87,6 +88,7 @@ export default function RequisitionForm() {
   const [relatedRequisition, setRelatedRequisition] = useState<any>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [budgetDescriptions, setBudgetDescriptions] = useState<string[]>([]);
   
   // Vérifier si c'est une réponse à une réquisition existante ou une modification
   const relatedRequisitionId = searchParams.get('related_to');
@@ -183,13 +185,19 @@ export default function RequisitionForm() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [servicesData, sitesData] = await Promise.all([
+        const [servicesData, sitesData, budgetsData] = await Promise.all([
           servicesAPI.getAll(),
-          sitesAPI.getAll()
+          sitesAPI.getAll(),
+          fetch(`${API_BASE_URL}/api/budgets/descriptions`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          }).then(res => res.json())
         ]);
         
         setServices(servicesData);
         setSites(sitesData);
+        if (Array.isArray(budgetsData)) {
+          setBudgetDescriptions(budgetsData);
+        }
         
         setFormData(prev => {
           if (prev.serviceDemandeur) {
@@ -501,13 +509,21 @@ export default function RequisitionForm() {
           </Typography>
           
           <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' }, mb: 3 }}>
-            <TextField
+            <Autocomplete
+              freeSolo
               fullWidth
-              label="Objet de la réquisition"
+              options={budgetDescriptions}
               value={formData.objet}
-              onChange={(e) => setFormData(prev => ({ ...prev, objet: e.target.value }))}
-              placeholder="Ex: Achat de matériel informatique"
-              variant="outlined"
+              onInputChange={(_, newValue) => setFormData(prev => ({ ...prev, objet: newValue }))}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Objet de la réquisition"
+                  placeholder="Ex: Achat de matériel informatique"
+                  variant="outlined"
+                  required
+                />
+              )}
             />
             <TextField
               fullWidth

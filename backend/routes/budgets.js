@@ -67,4 +67,74 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 });
 
+// Get unique budget descriptions for dropdowns
+router.get('/descriptions', authenticateToken, async (req, res) => {
+    try {
+        const descriptions = await dbUtils.all('SELECT DISTINCT description FROM budgets ORDER BY description');
+        res.json(descriptions.map(row => row.description));
+    } catch (error) {
+        console.error('Erreur récupération descriptions budgets:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get budget consumption history
+router.get('/history', authenticateToken, async (req, res) => {
+    try {
+        const { mois } = req.query;
+        const isPostgres = !!process.env.DATABASE_URL;
+        
+        const dateStr = isPostgres ? "to_char(r.created_at, 'YYYY-MM')" : "strftime('%Y-%m', r.created_at)";
+
+        let query = `
+            SELECT 
+                r.id as requisition_id,
+                r.numero as numero_requisition,
+                r.created_at as date_creation,
+                r.statut,
+                u.username as demandeur,
+                s.nom as service,
+                l.description as ligne_budgetaire,
+                l.prix_total as montant,
+                'USD' as devise,
+                b.montant_prevu,
+                b.montant_consomme
+            FROM lignes_requisition l
+            JOIN requisitions r ON l.requisition_id = r.id
+            JOIN users u ON r.emetteur_id = u.id
+            LEFT JOIN services s ON u.service_id = s.id
+            LEFT JOIN budgets b ON l.description = b.description AND b.mois = ${dateStr}
+            WHERE r.budget_impacted = TRUE
+        `;
+        
+        const params = [];
+        
+        if (mois) {
+            if (isPostgres) {
+                query += " AND to_char(r.created_at, 'YYYY-MM') = $1";
+            } else {
+                query += " AND strftime('%Y-%m', r.created_at) = ?";
+            }
+            params.push(mois);
+        }
+        
+        query += " ORDER BY r.created_at DESC";
+        
+        // Handle PG parameter syntax ($1, $2) vs SQLite (?) if dbUtils doesn't normalize it
+        // Assuming dbUtils handles '?' for both or we need to check. 
+        // database.js usually maps ? to $n for PG if using a custom wrapper, 
+        // BUT looking at previous code (requisitions.js), it uses '?' everywhere. 
+        // Let's assume dbUtils handles the translation or we are using a library that supports '?'
+        // Wait, if I use raw PG driver, it expects $1.
+        // Let's check database.js again to be sure about '?' support in PG.
+        
+        const history = await dbUtils.all(query, params);
+        res.json(history);
+        
+    } catch (error) {
+        console.error('Erreur historique budget:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

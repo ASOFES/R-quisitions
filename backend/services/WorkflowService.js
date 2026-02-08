@@ -107,14 +107,50 @@ class WorkflowService {
              let nouveauStatut = requisition.statut;
              if (currentNiveau === 'gm') {
                  nouveauStatut = 'validee';
-             } else if (currentNiveau === 'comptable' || currentNiveau === 'paiement') {
-                 nouveauStatut = 'payee';
+
+                 // --- MISE A JOUR BUDGET (Dès validation GM) ---
+                 try {
+                     const items = await dbUtils.all('SELECT * FROM lignes_requisition WHERE requisition_id = ?', [requisitionId]);
+                     if (items && items.length > 0) {
+                         const isCdfMain = (requisition.montant_cdf > 0 && (!requisition.montant_usd || requisition.montant_usd === 0));
+                         
+                         let rate = 2800;
+                         if (isCdfMain) {
+                             const rateSetting = await dbUtils.get('SELECT value FROM app_settings WHERE key = ?', ['exchange_rate']);
+                             if (rateSetting) rate = parseFloat(rateSetting.value);
+                         }
+
+                         const reqDate = new Date(requisition.created_at);
+                         const mois = reqDate.toISOString().slice(0, 7); // YYYY-MM
+
+                         for (const item of items) {
+                             let montantConsomme = item.prix_total || (item.quantite * item.prix_unitaire);
+                             
+                             if (isCdfMain) {
+                                 montantConsomme = montantConsomme / rate;
+                             }
+                             
+                             // Update budget consumption
+                             await BudgetService.updateConsommation(item.description, montantConsomme, mois);
+                         }
+                         console.log(`Budget mis à jour pour réquisition ${requisition.numero} (Validation GM)`);
+                     }
+                 } catch (budgetErr) {
+                     console.error('Erreur mise à jour budget lors de la validation GM:', budgetErr);
+                 }
                  
+                 // Marquer comme impacté
+                 await dbUtils.run('UPDATE requisitions SET budget_impacted = TRUE WHERE id = ?', [requisitionId]);
+
+             } else if (currentNiveau === 'validation_bordereau') {
+                 // ALIGNEMENT (Analyste) -> PAIEMENT
                  // Enregistrer le mode de paiement si fourni
                  if (mode_paiement) {
                      await dbUtils.run('UPDATE requisitions SET mode_paiement = ? WHERE id = ?', [mode_paiement, requisitionId]);
                  }
-
+             } else if (currentNiveau === 'comptable' || currentNiveau === 'paiement') {
+                 nouveauStatut = 'payee';
+                 
                  // --- GESTION DES FONDS ET MOUVEMENTS ---
                  let totalUsd = 0;
                  let totalCdf = 0;
@@ -145,36 +181,41 @@ class WorkflowService {
                  }
 
                  // --- MISE A JOUR BUDGET ---
-                 try {
-                     const items = await dbUtils.all('SELECT * FROM lignes_requisition WHERE requisition_id = ?', [requisitionId]);
-                     if (items && items.length > 0) {
-                         // Déterminer la devise principale (Logique simplifiée: si CDF > 0 et USD = 0 -> CDF, sinon USD)
-                         const isCdfMain = (requisition.montant_cdf > 0 && (!requisition.montant_usd || requisition.montant_usd === 0));
-                         
-                         let rate = 2800;
-                         if (isCdfMain) {
-                             const rateSetting = await dbUtils.get('SELECT value FROM app_settings WHERE key = ?', ['exchange_rate']);
-                             if (rateSetting) rate = parseFloat(rateSetting.value);
-                         }
+                 if (!requisition.budget_impacted) {
+                    try {
+                        const items = await dbUtils.all('SELECT * FROM lignes_requisition WHERE requisition_id = ?', [requisitionId]);
+                        if (items && items.length > 0) {
+                            // Déterminer la devise principale (Logique simplifiée: si CDF > 0 et USD = 0 -> CDF, sinon USD)
+                            const isCdfMain = (requisition.montant_cdf > 0 && (!requisition.montant_usd || requisition.montant_usd === 0));
+                            
+                            let rate = 2800;
+                            if (isCdfMain) {
+                                const rateSetting = await dbUtils.get('SELECT value FROM app_settings WHERE key = ?', ['exchange_rate']);
+                                if (rateSetting) rate = parseFloat(rateSetting.value);
+                            }
 
-                         const reqDate = new Date(requisition.created_at);
-                         const mois = reqDate.toISOString().slice(0, 7); // YYYY-MM
+                            const reqDate = new Date(requisition.created_at);
+                            const mois = reqDate.toISOString().slice(0, 7); // YYYY-MM
 
-                         for (const item of items) {
-                             let montantConsomme = item.prix_total || (item.quantite * item.prix_unitaire);
-                             
-                             if (isCdfMain) {
-                                 montantConsomme = montantConsomme / rate;
-                             }
-                             
-                             // Update budget consumption
-                             await BudgetService.updateConsommation(item.description, montantConsomme, mois);
-                         }
-                         console.log(`Budget mis à jour pour réquisition ${requisition.numero}`);
-                     }
-                 } catch (budgetErr) {
-                     console.error('Erreur mise à jour budget lors du paiement:', budgetErr);
+                            for (const item of items) {
+                                let montantConsomme = item.prix_total || (item.quantite * item.prix_unitaire);
+                                
+                                if (isCdfMain) {
+                                    montantConsomme = montantConsomme / rate;
+                                }
+                                
+                                // Update budget consumption
+                                await BudgetService.updateConsommation(item.description, montantConsomme, mois);
+                            }
+                            console.log(`Budget mis à jour pour réquisition ${requisition.numero}`);
+                        }
+                    } catch (budgetErr) {
+                        console.error('Erreur mise à jour budget lors du paiement:', budgetErr);
+                    }
                  }
+                 
+                 // Marquer comme impacté
+                 await dbUtils.run('UPDATE requisitions SET budget_impacted = TRUE WHERE id = ?', [requisitionId]);
              }
              
              await dbUtils.run('UPDATE requisitions SET statut = ?, niveau = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [nouveauStatut, niveauApres, requisitionId]);

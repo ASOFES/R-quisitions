@@ -100,6 +100,10 @@ const RequisitionsList: React.FC = () => {
   const [compilingPdf, setCompilingPdf] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number>(2800);
+  
+  // Batch Align Dialog State
+  const [batchAlignDialogOpen, setBatchAlignDialogOpen] = useState(false);
+  const [batchPaymentMode, setBatchPaymentMode] = useState<'Cash' | 'Banque' | 'Mobile Money' | 'Cheque'>('Cash');
 
   useEffect(() => {
     const fetchExchangeRate = async () => {
@@ -440,17 +444,18 @@ const RequisitionsList: React.FC = () => {
 
   const canUserAct = (requisition: Requisition) => {
     if (!user) return false;
-    
-    // Exception pour le comptable qui peut agir sur les réquisitions validées (pour paiement)
-    if (user.role === 'comptable' && (requisition.statut === 'validee' || requisition.niveau === 'paiement')) {
-        return true;
-    }
 
     // Si la réquisition est terminée/validée/refusée, aucune action n'est permise (lecture seule)
+    // IMPORTANT: Ceci doit être vérifié AVANT les exceptions de rôle pour éviter les actions sur l'historique
     if (isRequisitionFinished(requisition.statut)) return false;
     
+    // Exception pour le comptable qui peut agir sur les réquisitions validées (pour paiement)
+    if (user.role?.toLowerCase() === 'comptable' && (requisition.statut === 'validee' || requisition.niveau === 'paiement')) {
+        return true;
+    }
+    
     // Admin peut tout faire (pour debug/supervision)
-    if (user.role === 'admin' && !isRequisitionFinished(requisition.statut)) return true;
+    if (user.role?.toLowerCase() === 'admin' && !isRequisitionFinished(requisition.statut)) return true;
 
     const userRole = user.role?.toLowerCase();
     const reqNiveau = requisition.niveau?.toLowerCase();
@@ -465,6 +470,7 @@ const RequisitionsList: React.FC = () => {
     if (reqNiveau === 'approbation_service' && requisition.service_chef_id === user.id) return true;
 
     if (userRole === 'analyste' && reqNiveau === 'emetteur') return true;
+    if (userRole === 'analyste' && reqNiveau === 'validation_bordereau') return true;
     if (userRole === 'pm' && reqNiveau === 'validateur') return true;
     // Permettre au PM/Validateur d'agir aussi si la réquisition est au niveau 'challenger' (workflow simplifié)
     if ((userRole === 'pm' || userRole === 'validateur') && reqNiveau === 'challenger') return true;
@@ -526,7 +532,7 @@ const RequisitionsList: React.FC = () => {
         body = { 
           action: selectedAction, 
           commentaire: actionComment || (user?.role?.toLowerCase() === 'comptable' ? '' : 'Validé'),
-          mode_paiement: (user?.role?.toLowerCase() === 'comptable' && selectedAction === 'valider') ? paymentMode : undefined
+          mode_paiement: ((user?.role?.toLowerCase() === 'analyste') && selectedAction === 'valider') ? paymentMode : undefined
         };
       }
 
@@ -608,7 +614,15 @@ const RequisitionsList: React.FC = () => {
     if (event.target.checked) {
       // Select all payable requisitions in the current list
       const newSelecteds = currentList
-        .filter(n => (n.statut === 'validee' || n.niveau === 'paiement') && user?.role === 'comptable')
+        .filter(n => {
+            if (user?.role === 'comptable') {
+                return n.statut === 'validee' || n.niveau === 'paiement';
+            }
+            if (user?.role === 'analyste') {
+                return n.niveau === 'validation_bordereau';
+            }
+            return false;
+        })
         .map(n => n.id);
       setSelectedIds(newSelecteds);
       return;
@@ -637,6 +651,28 @@ const RequisitionsList: React.FC = () => {
   };
 
   const isSelected = (id: number) => selectedIds.indexOf(id) !== -1;
+
+  const handleModeUpdate = async (reqId: number, mode: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/requisitions/${reqId}/payment-mode`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ mode_paiement: mode })
+      });
+
+      if (response.ok) {
+          loadRequisitions();
+      } else {
+          console.error("Failed to update mode");
+      }
+    } catch (error) {
+      console.error("Error updating mode", error);
+    }
+  };
 
   const handleBatchPayment = async () => {
     if (selectedIds.length === 0) return;
@@ -675,6 +711,53 @@ const RequisitionsList: React.FC = () => {
     } catch (error) {
       console.error('Erreur:', error);
       alert('Une erreur est survenue lors du paiement groupé.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOpenBatchAlignDialog = () => {
+    setBatchPaymentMode('Cash');
+    setBatchAlignDialogOpen(true);
+  };
+
+  const handleCloseBatchAlignDialog = () => {
+    setBatchAlignDialogOpen(false);
+  };
+
+  const handleBatchAlign = async () => {
+    if (selectedIds.length === 0) return;
+    
+    setSubmitting(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Non authentifié');
+
+      const response = await fetch(`${API_BASE_URL}/api/requisitions/batch-align`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+            requisitionIds: selectedIds,
+            mode_paiement: batchPaymentMode
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(result.message || 'Réquisitions alignées avec succès');
+        setSelectedIds([]);
+        loadRequisitions();
+        handleCloseBatchAlignDialog();
+      } else {
+        const errorData = await response.json();
+        alert(`Erreur: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Une erreur est survenue lors de l\'alignement groupé.');
     } finally {
       setSubmitting(false);
     }
@@ -967,7 +1050,7 @@ const RequisitionsList: React.FC = () => {
             <Tab label={`Historique (${historyRequisitions.length})`} value="history" sx={{ textTransform: 'none', fontWeight: 600 }} />
           </Tabs>
 
-          {selectedIds.length > 0 && user?.role === 'comptable' && (
+          {selectedIds.length > 0 && user?.role?.toLowerCase() === 'comptable' && (
             <Button
               variant="contained"
               color="secondary"
@@ -979,6 +1062,18 @@ const RequisitionsList: React.FC = () => {
               Payer la sélection ({selectedIds.length})
             </Button>
           )}
+          {selectedIds.length > 0 && user?.role?.toLowerCase() === 'analyste' && (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<CheckCircle />}
+              onClick={handleOpenBatchAlignDialog}
+              disabled={submitting}
+              sx={{ my: 1 }}
+            >
+              Aligner la sélection ({selectedIds.length})
+            </Button>
+          )}
         </Box>
 
         {/* Table */}
@@ -986,17 +1081,29 @@ const RequisitionsList: React.FC = () => {
           <Table sx={{ minWidth: 650 }}>
             <TableHead sx={{ bgcolor: 'grey.50' }}>
               <TableRow>
-                {user?.role === 'comptable' && (
+                {(user?.role?.toLowerCase() === 'comptable' || user?.role?.toLowerCase() === 'analyste') && (
                   <TableCell padding="checkbox">
                     <Checkbox
                       color="primary"
                       indeterminate={
                         selectedIds.length > 0 && 
-                        selectedIds.length < paginatedList.filter(n => (n.statut === 'validee' || n.niveau === 'paiement')).length
+                        selectedIds.length < paginatedList.filter(n => {
+                           if (user?.role?.toLowerCase() === 'comptable') return (n.statut === 'validee' || n.niveau === 'paiement');
+                           if (user?.role?.toLowerCase() === 'analyste') return n.niveau === 'validation_bordereau';
+                           return false;
+                        }).length
                       }
                       checked={
-                        paginatedList.filter(n => (n.statut === 'validee' || n.niveau === 'paiement')).length > 0 && 
-                        selectedIds.length === paginatedList.filter(n => (n.statut === 'validee' || n.niveau === 'paiement')).length
+                        paginatedList.filter(n => {
+                           if (user?.role?.toLowerCase() === 'comptable') return (n.statut === 'validee' || n.niveau === 'paiement');
+                           if (user?.role?.toLowerCase() === 'analyste') return n.niveau === 'validation_bordereau';
+                           return false;
+                        }).length > 0 && 
+                        selectedIds.length === paginatedList.filter(n => {
+                           if (user?.role?.toLowerCase() === 'comptable') return (n.statut === 'validee' || n.niveau === 'paiement');
+                           if (user?.role?.toLowerCase() === 'analyste') return n.niveau === 'validation_bordereau';
+                           return false;
+                        }).length
                       }
                       onChange={handleSelectAllClick}
                     />
@@ -1005,7 +1112,9 @@ const RequisitionsList: React.FC = () => {
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Référence</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary', width: '30%' }}>Objet</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Montant</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Mode</TableCell>
+                {(user?.role?.toLowerCase() === 'analyste' || user?.role?.toLowerCase() === 'comptable' || user?.role?.toLowerCase() === 'gm' || user?.role?.toLowerCase() === 'admin') && (
+                  <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Mode</TableCell>
+                )}
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Service</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Initiateur</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Statut</TableCell>
@@ -1032,18 +1141,23 @@ const RequisitionsList: React.FC = () => {
                       '&:hover': { bgcolor: req.related_to ? alpha(theme.palette.error.main, 0.1) : undefined }
                     }}
                   >
-                    {user?.role === 'comptable' && (
+                    {(user?.role?.toLowerCase() === 'comptable' || user?.role?.toLowerCase() === 'analyste') && (
                       <TableCell padding="checkbox">
                         <Checkbox
                           color="primary"
                           checked={isSelected(req.id)}
                           onClick={(event) => {
                             event.stopPropagation();
-                            if ((req.statut === 'validee' || req.niveau === 'paiement')) {
-                              handleClick(event, req.id);
+                            if (user?.role?.toLowerCase() === 'comptable' && (req.statut === 'validee' || req.niveau === 'paiement') && !isRequisitionFinished(req.statut)) {
+                                handleClick(event, req.id);
+                            } else if (user?.role?.toLowerCase() === 'analyste' && req.niveau === 'validation_bordereau') {
+                                handleClick(event, req.id);
                             }
                           }}
-                          disabled={!((req.statut === 'validee' || req.niveau === 'paiement'))}
+                          disabled={
+                             (user?.role?.toLowerCase() === 'comptable' && (!((req.statut === 'validee' || req.niveau === 'paiement') && !isRequisitionFinished(req.statut)))) ||
+                             (user?.role?.toLowerCase() === 'analyste' && req.niveau !== 'validation_bordereau')
+                          }
                         />
                       </TableCell>
                     )}
@@ -1086,13 +1200,36 @@ const RequisitionsList: React.FC = () => {
                         />
                       </Typography>
                     </TableCell>
+                    {(user?.role?.toLowerCase() === 'analyste' || user?.role?.toLowerCase() === 'comptable' || user?.role?.toLowerCase() === 'gm' || user?.role?.toLowerCase() === 'admin') && (
                     <TableCell>
-                      {req.mode_paiement ? (
-                        <Chip label={req.mode_paiement} color={req.mode_paiement === 'Cash' ? 'success' : 'primary'} size="small" />
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">-</Typography>
-                      )}
+                       {user?.role?.toLowerCase() === 'analyste' && (req.niveau === 'validation_bordereau' || (req.niveau === 'paiement' && req.statut !== 'payee')) ? (
+                           <Select
+                               value={req.mode_paiement || ''}
+                               onChange={(e) => handleModeUpdate(req.id, e.target.value as string)}
+                               size="small"
+                               displayEmpty
+                               variant="standard"
+                               disableUnderline
+                               onClick={(e) => e.stopPropagation()}
+                               sx={{ fontSize: '0.8125rem', minWidth: 100 }}
+                           >
+                               <MenuItem value="" disabled>
+                                   <Typography variant="caption" color="text.secondary">Choisir...</Typography>
+                               </MenuItem>
+                               <MenuItem value="Cash">Cash</MenuItem>
+                               <MenuItem value="Banque">Banque</MenuItem>
+                               <MenuItem value="Mobile Money">Mobile Money</MenuItem>
+                               <MenuItem value="Cheque">Chèque</MenuItem>
+                           </Select>
+                       ) : (
+                           req.mode_paiement ? (
+                              <Chip label={req.mode_paiement} color={req.mode_paiement === 'Cash' ? 'success' : 'primary'} size="small" />
+                           ) : (
+                              <Typography variant="caption" color="text.secondary">-</Typography>
+                           )
+                       )}
                     </TableCell>
+                    )}
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">
                         {req.service_nom}
@@ -1607,6 +1744,23 @@ const RequisitionsList: React.FC = () => {
               Vous êtes sur le point de refuser cette réquisition. Elle sera retournée à l'émetteur ou terminée.
             </Alert>
           )}
+          {selectedAction === 'valider' && (
+            (user?.role?.toLowerCase() === 'analyste' && processingRequisition?.niveau === 'validation_bordereau')
+          ) && (
+            <FormControl fullWidth margin="dense" sx={{ mt: 2 }}>
+              <InputLabel>Mode de Paiement</InputLabel>
+              <Select
+                value={paymentMode}
+                label="Mode de Paiement"
+                onChange={(e) => setPaymentMode(e.target.value as any)}
+              >
+                <MenuItem value="Cash">Cash</MenuItem>
+                <MenuItem value="Banque">Banque</MenuItem>
+                <MenuItem value="Mobile Money">Mobile Money</MenuItem>
+                <MenuItem value="Cheque">Chèque</MenuItem>
+              </Select>
+            </FormControl>
+          )}
           {!(user?.role === 'comptable' && selectedAction === 'valider') && (
             <TextField
               autoFocus
@@ -1628,6 +1782,44 @@ const RequisitionsList: React.FC = () => {
             onClick={handleSubmitAction} 
             variant="contained" 
             color={selectedAction === 'refuser' ? 'error' : selectedAction === 'valider' ? 'success' : 'primary'}
+            disabled={submitting}
+          >
+            {submitting ? <CircularProgress size={24} /> : 'Confirmer'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Batch Align Dialog */}
+      <Dialog open={batchAlignDialogOpen} onClose={handleCloseBatchAlignDialog}>
+        <DialogTitle>Alignement des réquisitions</DialogTitle>
+        <DialogContent>
+            <Typography variant="body1" gutterBottom sx={{ mt: 1 }}>
+              Vous êtes sur le point d'aligner {selectedIds.length} réquisitions.
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Veuillez sélectionner le mode de paiement pour ce groupe.
+            </Typography>
+            
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Mode de Paiement</InputLabel>
+              <Select
+                value={batchPaymentMode}
+                label="Mode de Paiement"
+                onChange={(e) => setBatchPaymentMode(e.target.value as any)}
+              >
+                <MenuItem value="Cash">Cash</MenuItem>
+                <MenuItem value="Banque">Banque</MenuItem>
+                <MenuItem value="Mobile Money">Mobile Money</MenuItem>
+                <MenuItem value="Cheque">Chèque</MenuItem>
+              </Select>
+            </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseBatchAlignDialog}>Annuler</Button>
+          <Button 
+            onClick={handleBatchAlign} 
+            variant="contained" 
+            color="primary"
             disabled={submitting}
           >
             {submitting ? <CircularProgress size={24} /> : 'Confirmer'}

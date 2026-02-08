@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS services (
   code VARCHAR(10) UNIQUE NOT NULL,
   nom VARCHAR(100) NOT NULL,
   description TEXT,
+  chef_id INTEGER,
   actif BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -34,7 +35,7 @@ CREATE TABLE IF NOT EXISTS users (
   password VARCHAR(255) NOT NULL,
   nom_complet VARCHAR(100) NOT NULL,
   email VARCHAR(100) UNIQUE,
-  role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'emetteur', 'analyste', 'challenger', 'validateur', 'comptable', 'gm', 'pm')),
+  role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'emetteur', 'analyste', 'challenger', 'validateur', 'comptable', 'gm', 'pm', 'compilateur')),
   service_id INTEGER REFERENCES services(id),
   zone_id INTEGER REFERENCES zones(id),
   actif BOOLEAN DEFAULT TRUE,
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS requisitions (
   niveau_retour VARCHAR(20),
   statut VARCHAR(20) NOT NULL DEFAULT 'en_cours',
   mode_paiement VARCHAR(20),
+  budget_impacted BOOLEAN DEFAULT FALSE,
   related_to INTEGER,
   site_id INTEGER REFERENCES sites(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -100,6 +102,20 @@ CREATE TABLE IF NOT EXISTS pieces_jointes (
   type_fichier VARCHAR(50),
   uploaded_by INTEGER NOT NULL REFERENCES users(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS budgets (
+  id SERIAL PRIMARY KEY,
+  description VARCHAR(255) NOT NULL,
+  montant_prevu DECIMAL(15,2) NOT NULL DEFAULT 0,
+  montant_consomme DECIMAL(15,2) NOT NULL DEFAULT 0,
+  mois VARCHAR(7) NOT NULL, -- YYYY-MM
+  annee VARCHAR(4),
+  classification VARCHAR(100),
+  service_id INTEGER REFERENCES services(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(description, service_id, mois)
 );
 
 CREATE TABLE IF NOT EXISTS fonds (
@@ -151,12 +167,12 @@ ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO users (username, password, nom_complet, email, role, service_id) VALUES
 ('admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrateur System', 'admin@requisition.com', 'admin', NULL),
-('edla.m', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Edla Mukeba', 'edla.m@requisition.com', 'emetteur', 1),
-('analyste.compta', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Analyste Comptable', 'analyste@requisition.com', 'analyste', 2),
-('challenger', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Challenger Principal', 'challenger@requisition.com', 'challenger', 2),
-('pm.user', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Project Manager', 'pm@requisition.com', 'validateur', 3),
-('gm.user', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'General Manager', 'gm@requisition.com', 'gm', 3),
-('comptable', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Comptable Principal', 'comptable@requisition.com', 'comptable', 2)
+('edla.m', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Edla Mukeba', 'edla.m@requisition.com', 'emetteur', (SELECT id FROM services WHERE code = 'RH')),
+('analyste.compta', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Analyste Comptable', 'analyste@requisition.com', 'analyste', (SELECT id FROM services WHERE code = 'FIN')),
+('challenger', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Challenger Principal', 'challenger@requisition.com', 'challenger', (SELECT id FROM services WHERE code = 'FIN')),
+('pm.user', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Project Manager', 'pm@requisition.com', 'validateur', (SELECT id FROM services WHERE code = 'IT')),
+('gm.user', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'General Manager', 'gm@requisition.com', 'gm', (SELECT id FROM services WHERE code = 'IT')),
+('comptable', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Comptable Principal', 'comptable@requisition.com', 'comptable', (SELECT id FROM services WHERE code = 'FIN'))
 ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO zones (code, nom, description) VALUES 

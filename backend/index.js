@@ -8,6 +8,19 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 
+// Configuration CORS plus robuste
+const corsOptions = {
+  origin: true, // Reflète l'origine de la requête (permet tout)
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  allowedHeaders: 'Content-Type, Authorization, X-Requested-With',
+  credentials: true,
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+// app.options('*', cors(corsOptions)); // Commenté car provoque erreur PathError avec '*'
+
+
 // S'assurer que le dossier uploads existe
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -23,7 +36,7 @@ const io = socketIo(server, {
 });
 
 // Middleware
-app.use(cors());
+// app.use(cors()); // Supprimé car configuré plus haut avec options
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -91,6 +104,7 @@ const siteRoutes = require('./routes/sites');
 const compilationRoutes = require('./routes/compilations');
 const budgetRoutes = require('./routes/budgets');
 const WorkflowService = require('./services/WorkflowService');
+const BudgetService = require('./services/BudgetService');
 const { dbReady } = require('./database/database');
 
 // Utiliser les routes
@@ -162,12 +176,22 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Serveur démarré sur le port ${PORT}`);
-  console.log(`📦 Version: Bucket 'requisitions' (sans accent)`);
-  
-  // Démarrer le job de validation automatique (toutes les minutes)
-  setInterval(() => {
-    WorkflowService.runAutoValidation().catch(err => console.error('Erreur job auto-validation:', err));
-  }, 60 * 1000); // 60 secondes
+
+// Attendre que la DB soit prête avant de démarrer
+dbReady.then(() => {
+  server.listen(PORT, () => {
+    console.log(`🚀 Serveur démarré sur le port ${PORT}`);
+    console.log(`📦 Version: Bucket 'requisitions' (sans accent)`);
+    
+    // Réparer les incohérences de budget au démarrage
+    BudgetService.fixBudgetInconsistencies().catch(err => console.error('Erreur réparation budget au démarrage:', err));
+
+    // Démarrer le job de validation automatique (toutes les minutes)
+    setInterval(() => {
+        WorkflowService.runAutoValidation().catch(err => console.error('Erreur job auto-validation:', err));
+    }, 60 * 1000); // 60 secondes
+  });
+}).catch(err => {
+  console.error('❌ Impossible de démarrer le serveur car la base de données a échoué:', err);
+  process.exit(1);
 });

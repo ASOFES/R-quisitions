@@ -18,29 +18,83 @@ import {
   TableHead,
   TableRow,
   Paper,
-  IconButton
+  IconButton,
+  Tabs,
+  Tab,
+  FormControlLabel,
+  Switch,
+  Chip
 } from '@mui/material';
-import { CloudUpload, Refresh, Search } from '@mui/icons-material';
+import { CloudUpload, Refresh, Search, Print, History, AccountBalanceWallet, PictureAsPdf, TableView } from '@mui/icons-material';
 import api from '../services/api';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
+
+interface Budget {
+  id: number;
+  description: string;
+  montant_prevu: number;
+  montant_consomme: number;
+  mois: string;
+  classification?: string;
+}
+
+interface BudgetHistoryItem {
+  requisition_id: number;
+  numero_requisition: string;
+  date_creation: string;
+  statut: string;
+  demandeur: string;
+  service: string;
+  ligne_budgetaire: string;
+  montant: number;
+  devise: string;
+  montant_prevu?: number;
+  montant_consomme?: number;
+}
 
 const BudgetsPage: React.FC = () => {
+  const [tabValue, setTabValue] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [mois, setMois] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [budgets, setBudgets] = useState<any[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [history, setHistory] = useState<BudgetHistoryItem[]>([]);
   const [search, setSearch] = useState('');
+  const [hideUnconsumed, setHideUnconsumed] = useState(false);
 
   useEffect(() => {
-    fetchBudgets();
-  }, [mois]);
+    if (tabValue === 0) {
+      fetchBudgets();
+    } else {
+      fetchHistory();
+    }
+  }, [mois, tabValue]);
 
   const fetchBudgets = async () => {
     try {
+      setLoading(true);
       const response = await api.get(`/budgets?mois=${mois}`);
       setBudgets(response.data);
     } catch (error) {
       console.error('Erreur chargement budgets:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchHistory = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/budgets/history?mois=${mois}`);
+      setHistory(response.data);
+    } catch (error) {
+      console.error('Erreur chargement historique:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -73,7 +127,6 @@ const BudgetsPage: React.FC = () => {
 
       setMessage({ type: 'success', text: `Import réussi ! ${response.data.count} lignes traitées.` });
       setFile(null);
-      // Reset input file if possible, or just ignore
       fetchBudgets();
     } catch (error: any) {
       console.error('Erreur import:', error);
@@ -83,138 +136,705 @@ const BudgetsPage: React.FC = () => {
     }
   };
 
-  const filteredBudgets = budgets.filter(b => 
-    b.description.toLowerCase().includes(search.toLowerCase()) ||
-    b.classification?.toLowerCase().includes(search.toLowerCase())
-  );
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const getLogoBuffer = async (): Promise<{ buffer: ArrayBuffer, format: string } | null> => {
+    try {
+        // 1. Get logo URL from settings
+        const settingsRes = await api.get('/settings/logo');
+        const logoUrl = settingsRes.data.url; // e.g., /uploads/logo.png?t=123
+
+        if (logoUrl) {
+            // 2. Fetch image data
+            // Construct full URL if relative
+            let fullUrl = logoUrl;
+            if (!logoUrl.startsWith('http')) {
+                // Remove /api from baseURL if present to get root URL
+                const baseUrl = api.defaults.baseURL?.replace('/api', '') || window.location.origin;
+                fullUrl = `${baseUrl}${logoUrl.startsWith('/') ? '' : '/'}${logoUrl}`;
+            }
+            
+            const response = await fetch(fullUrl);
+            const blob = await response.blob();
+            const buffer = await blob.arrayBuffer();
+            
+            // Determine format from content-type or extension
+            let format = 'PNG';
+            const cleanUrl = logoUrl.split('?')[0].toLowerCase();
+            
+            if (blob.type === 'image/jpeg' || cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg')) {
+                format = 'JPEG';
+            } else if (blob.type === 'image/png' || cleanUrl.endsWith('.png')) {
+                format = 'PNG';
+            }
+            
+            return { buffer, format };
+        }
+    } catch (error) {
+        console.warn('Impossible de récupérer le logo pour l\'export', error);
+    }
+    return null;
+  };
+
+  const handleExportPDF = async () => {
+    const doc = new jsPDF();
+    const logoData = await getLogoBuffer();
+
+    if (logoData) {
+        const logoUint8 = new Uint8Array(logoData.buffer);
+        try {
+             // @ts-ignore
+             doc.addImage(logoUint8, logoData.format, 14, 10, 30, 30);
+        } catch (e) {
+            console.warn('Erreur ajout logo PDF', e);
+        }
+    }
+
+    doc.setFontSize(18);
+    doc.text("Historique de Consommation Budgétaire", 50, 25);
+    
+    doc.setFontSize(11);
+    doc.text(`Période: ${mois}`, 50, 32);
+    doc.text(`Date d'export: ${new Date().toLocaleDateString()}`, 50, 38);
+
+    const tableColumn = ["Date", "Réquisition", "Demandeur", "Service", "Ligne Budgétaire", "Montant Req.", "Alloué", "Consommé", "Reste", "Statut"];
+    const tableRows: any[] = [];
+
+    history.forEach(item => {
+        const reste = Number(item.montant_prevu || 0) - Number(item.montant_consomme || 0);
+        const rowData = [
+            new Date(item.date_creation).toLocaleDateString(),
+            item.numero_requisition,
+            item.demandeur,
+            item.service,
+            item.ligne_budgetaire,
+            `${Number(item.montant).toLocaleString()} ${item.devise}`,
+            `${Number(item.montant_prevu || 0).toLocaleString()} USD`,
+            `${Number(item.montant_consomme || 0).toLocaleString()} USD`,
+            `${reste.toLocaleString()} USD`,
+            item.statut
+        ];
+        tableRows.push(rowData);
+    });
+
+    autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 45,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [41, 128, 185] },
+    });
+
+    const pageCount = doc.getNumberOfPages();
+    for(let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text('Page ' + i + ' / ' + pageCount, 195, 285, { align: 'right' });
+    }
+
+    doc.save(`historique_budget_${mois}.pdf`);
+  };
+
+  const handleExportExcelEtat = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Etat Budget');
+
+    // Add Logo if available
+    const logoData = await getLogoBuffer();
+    if (logoData) {
+        const logoId = workbook.addImage({
+            buffer: logoData.buffer,
+            extension: logoData.format.toLowerCase() as 'png' | 'jpeg',
+        });
+        worksheet.addImage(logoId, {
+            tl: { col: 0, row: 0 },
+            ext: { width: 100, height: 100 }
+        });
+    }
+
+    // Title
+    worksheet.mergeCells('C2:H2');
+    const titleCell = worksheet.getCell('C2');
+    titleCell.value = 'État de Consommation Budgétaire';
+    titleCell.font = { name: 'Arial', size: 16, bold: true };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    worksheet.mergeCells('C3:H3');
+    const subtitleCell = worksheet.getCell('C3');
+    subtitleCell.value = `Période: ${mois} - Exporté le ${new Date().toLocaleDateString()}`;
+    subtitleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // Header Row
+    const headerRowIdx = 6;
+    const headers = ["Description", "Catégorie", "Budget Alloué", "Consommé", "Solde", "% Exécution"];
+    const headerRow = worksheet.getRow(headerRowIdx);
+    headerRow.values = headers;
+    
+    headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF2980B9' }
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+        };
+    });
+
+    // Data Rows
+    filteredBudgets.forEach((item, index) => {
+        const rowIndex = headerRowIdx + 1 + index;
+        const row = worksheet.getRow(rowIndex);
+        const solde = Number(item.montant_prevu || 0) - Number(item.montant_consomme || 0);
+        const percent = Number(item.montant_prevu || 0) > 0 
+            ? (Number(item.montant_consomme || 0) / Number(item.montant_prevu || 0))
+            : 0;
+
+        row.values = [
+            item.description,
+            item.classification || '-',
+            Number(item.montant_prevu || 0),
+            Number(item.montant_consomme || 0),
+            solde,
+            percent
+        ];
+
+        // Styling
+        row.getCell(3).numFmt = '#,##0.00 "USD"';
+        row.getCell(4).numFmt = '#,##0.00 "USD"';
+        row.getCell(5).numFmt = '#,##0.00 "USD"';
+        row.getCell(6).numFmt = '0%';
+
+        // Color for Solde
+        if (solde < 0) {
+            row.getCell(5).font = { color: { argb: 'FFFF0000' }, bold: true };
+        } else {
+            row.getCell(5).font = { color: { argb: 'FF008000' }, bold: true };
+        }
+        
+        // Color for Percent
+        if (percent > 1) { // > 100%
+             row.getCell(6).font = { color: { argb: 'FFFF0000' }, bold: true };
+        }
+
+        row.eachCell({ includeEmpty: true }, (cell) => {
+             cell.border = {
+                top: { style: 'thin' },
+                left: { style: 'thin' },
+                bottom: { style: 'thin' },
+                right: { style: 'thin' }
+            };
+        });
+    });
+
+    // Auto width
+    worksheet.columns.forEach(column => {
+        column.width = 15;
+    });
+    worksheet.getColumn(1).width = 40; // Description
+
+    // Save
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `Etat_Budget_${mois}.xlsx`);
+  };
+
+  const handleExportPDFEtat = async () => {
+    const doc = new jsPDF();
+    const logoData = await getLogoBuffer();
+
+    if (logoData) {
+        const logoUint8 = new Uint8Array(logoData.buffer);
+        try {
+             // @ts-ignore
+             doc.addImage(logoUint8, logoData.format, 14, 10, 30, 30);
+        } catch (e) {
+            console.warn('Erreur ajout logo PDF', e);
+        }
+    }
+
+    doc.setFontSize(18);
+    doc.text("État de Consommation Budgétaire", 50, 25);
+    
+    doc.setFontSize(11);
+    doc.text(`Période: ${mois}`, 50, 32);
+    doc.text(`Date d'export: ${new Date().toLocaleDateString()}`, 50, 38);
+
+    const tableColumn = ["Description", "Catégorie", "Alloué", "Consommé", "Solde", "%"];
+    const tableRows: any[] = [];
+
+    filteredBudgets.forEach(item => {
+        const solde = Number(item.montant_prevu || 0) - Number(item.montant_consomme || 0);
+        const percent = Number(item.montant_prevu || 0) > 0 
+            ? (Number(item.montant_consomme || 0) / Number(item.montant_prevu || 0)) * 100 
+            : 0;
+            
+        const rowData = [
+            item.description,
+            item.classification || '-',
+            `${Number(item.montant_prevu || 0).toLocaleString()} USD`,
+            `${Number(item.montant_consomme || 0).toLocaleString()} USD`,
+            `${solde.toLocaleString()} USD`,
+            `${percent.toFixed(0)}%`
+        ];
+        tableRows.push(rowData);
+    });
+
+    autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 45,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [41, 128, 185] },
+        columnStyles: {
+            0: { cellWidth: 60 }, // Description wider
+            2: { halign: 'right' },
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+            5: { halign: 'right' }
+        }
+    });
+
+    const pageCount = doc.getNumberOfPages();
+    for(let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text('Page ' + i + ' / ' + pageCount, 195, 285, { align: 'right' });
+    }
+
+    doc.save(`etat_budget_${mois}.pdf`);
+  };
+
+  const handleExportExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Historique');
+
+    // Add Logo if available
+    const logoData = await getLogoBuffer();
+    if (logoData) {
+        const logoId = workbook.addImage({
+            buffer: logoData.buffer,
+            extension: logoData.format.toLowerCase() as 'png' | 'jpeg',
+        });
+        worksheet.addImage(logoId, {
+            tl: { col: 0, row: 0 },
+            ext: { width: 100, height: 100 }
+        });
+    }
+
+    // Title
+    worksheet.mergeCells('C2:H2');
+    const titleCell = worksheet.getCell('C2');
+    titleCell.value = 'Historique de Consommation Budgétaire';
+    titleCell.font = { name: 'Arial', size: 16, bold: true };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    worksheet.mergeCells('C3:H3');
+    const subtitleCell = worksheet.getCell('C3');
+    subtitleCell.value = `Période: ${mois} - Exporté le ${new Date().toLocaleDateString()}`;
+    subtitleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // Header Row
+    const headerRowIdx = 6;
+    const headers = ["Date", "Réquisition", "Demandeur", "Service", "Ligne Budgétaire", "Montant Req.", "Budget Alloué", "Total Consommé", "Reste à Consommer", "Statut"];
+    const headerRow = worksheet.getRow(headerRowIdx);
+    headerRow.values = headers;
+    
+    headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF2980B9' }
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+        };
+    });
+
+    // Data Rows
+    history.forEach((item, index) => {
+        const rowIndex = headerRowIdx + 1 + index;
+        const row = worksheet.getRow(rowIndex);
+        const reste = Number(item.montant_prevu || 0) - Number(item.montant_consomme || 0);
+
+        row.values = [
+            new Date(item.date_creation).toLocaleDateString(),
+            item.numero_requisition,
+            item.demandeur,
+            item.service,
+            item.ligne_budgetaire,
+            Number(item.montant),
+            Number(item.montant_prevu || 0),
+            Number(item.montant_consomme || 0),
+            reste,
+            item.statut
+        ];
+
+        // Styling
+        row.getCell(6).numFmt = '#,##0.00 "USD"';
+        row.getCell(7).numFmt = '#,##0.00 "USD"';
+        row.getCell(8).numFmt = '#,##0.00 "USD"';
+        row.getCell(9).numFmt = '#,##0.00 "USD"';
+
+        // Color for Reste
+        if (reste < 0) {
+            row.getCell(9).font = { color: { argb: 'FFFF0000' }, bold: true };
+        } else {
+            row.getCell(9).font = { color: { argb: 'FF008000' }, bold: true };
+        }
+
+        row.eachCell({ includeEmpty: true }, (cell) => {
+             cell.border = {
+                top: { style: 'thin' },
+                left: { style: 'thin' },
+                bottom: { style: 'thin' },
+                right: { style: 'thin' }
+            };
+        });
+    });
+
+    // Auto width (approximate)
+    worksheet.columns.forEach(column => {
+        column.width = 20;
+    });
+    worksheet.getColumn(1).width = 12; // Date
+    worksheet.getColumn(2).width = 25; // Req
+    worksheet.getColumn(5).width = 30; // Ligne Budget
+
+    // Save
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `Historique_Budget_${mois}.xlsx`);
+  };
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  };
+
+  const filteredBudgets = budgets.filter(b => {
+    const matchesSearch = b.description.toLowerCase().includes(search.toLowerCase()) ||
+                          b.classification?.toLowerCase().includes(search.toLowerCase());
+    const matchesConsumption = hideUnconsumed ? b.montant_consomme > 0 : true;
+    return matchesSearch && matchesConsumption;
+  });
+
+  const totalAlloue = filteredBudgets.reduce((sum, b) => sum + Number(b.montant_prevu || 0), 0);
+  const totalConsomme = filteredBudgets.reduce((sum, b) => sum + Number(b.montant_consomme || 0), 0);
+  const pourcentageGlobal = totalAlloue > 0 ? (totalConsomme / totalAlloue) * 100 : 0;
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Gestion des Budgets
-      </Typography>
+      {/* Header - No Print */}
+      <Box sx={{ '@media print': { display: 'none' } }}>
+        <Typography variant="h4" gutterBottom>
+          Gestion Budgétaire
+        </Typography>
 
-      <Grid container spacing={3}>
-        {/* Import Section */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Importer un budget (Excel)
-              </Typography>
-              
-              <Box sx={{ mb: 2 }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Tabs value={tabValue} onChange={handleTabChange}>
+            <Tab label="État des Budgets" icon={<AccountBalanceWallet />} iconPosition="start" />
+            <Tab label="Historique Consommation" icon={<History />} iconPosition="start" />
+          </Tabs>
+        </Box>
+
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          <Grid size={{ xs: 12, md: 3 }}>
+            <TextField
+              label="Mois"
+              type="month"
+              value={mois}
+              onChange={(e) => setMois(e.target.value)}
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+            />
+          </Grid>
+          
+          {tabValue === 0 && (
+            <>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
-                  label="Mois"
-                  type="month"
-                  value={mois}
-                  onChange={(e) => setMois(e.target.value)}
+                  label="Rechercher..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                   fullWidth
-                  InputLabelProps={{ shrink: true }}
+                  size="small"
+                  InputProps={{
+                    endAdornment: <Search color="action" />
+                  }}
                 />
-              </Box>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                 <FormControlLabel
+                    control={<Switch checked={hideUnconsumed} onChange={(e) => setHideUnconsumed(e.target.checked)} />}
+                    label="Uniq. Consommés"
+                    sx={{ mr: 'auto' }} 
+                 />
+                 <Button 
+                    variant="outlined" 
+                    startIcon={<TableView />} 
+                    onClick={handleExportExcelEtat}
+                    color="success"
+                    size="small"
+                 >
+                    Excel
+                 </Button>
+                 <Button 
+                    variant="outlined" 
+                    startIcon={<PictureAsPdf />} 
+                    onClick={handleExportPDFEtat}
+                    color="error"
+                    size="small"
+                 >
+                    PDF
+                 </Button>
+                 <Button 
+                    variant="contained" 
+                    startIcon={<Print />} 
+                    onClick={handlePrint}
+                    size="small"
+                 >
+                    Imprimer
+                 </Button>
+              </Grid>
+            </>
+          )}
 
-              <Box sx={{ mb: 2 }}>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  fullWidth
-                  startIcon={<CloudUpload />}
-                >
-                  Choisir le fichier
-                  <input
-                    type="file"
-                    hidden
-                    accept=".xlsx, .xls"
-                    onChange={handleFileChange}
-                  />
-                </Button>
-                {file && <Typography variant="caption" display="block" sx={{ mt: 1 }}>{file.name}</Typography>}
-              </Box>
-
-              <Button
-                variant="contained"
-                color="primary"
-                fullWidth
-                onClick={handleImport}
-                disabled={loading || !file}
-              >
-                {loading ? <CircularProgress size={24} /> : 'Importer'}
-              </Button>
-
-              {message && (
-                <Alert severity={message.type} sx={{ mt: 2 }}>
-                  {message.text}
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
+           {tabValue === 1 && (
+             <Grid size={{ xs: 12, md: 9 }} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                 <Button 
+                    variant="outlined" 
+                    startIcon={<TableView />} 
+                    onClick={handleExportExcel}
+                    color="success"
+                 >
+                    Excel
+                 </Button>
+                 <Button 
+                    variant="outlined" 
+                    startIcon={<PictureAsPdf />} 
+                    onClick={handleExportPDF}
+                    color="error"
+                 >
+                    PDF
+                 </Button>
+                 <Button 
+                    variant="contained" 
+                    startIcon={<Print />} 
+                    onClick={handlePrint}
+                 >
+                    Imprimer
+                 </Button>
+             </Grid>
+           )}
         </Grid>
 
-        {/* List Section */}
-        <Grid size={{ xs: 12, md: 8 }}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">
-                  Lignes budgétaires ({filteredBudgets.length})
-                </Typography>
-                <IconButton onClick={fetchBudgets}>
-                  <Refresh />
-                </IconButton>
-              </Box>
+        {message && (
+          <Alert severity={message.type} sx={{ mb: 2 }} onClose={() => setMessage(null)}>
+            {message.text}
+          </Alert>
+        )}
+      </Box>
 
-              <TextField
-                placeholder="Rechercher..."
-                size="small"
-                fullWidth
-                sx={{ mb: 2 }}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                InputProps={{
-                  startAdornment: <Search color="action" sx={{ mr: 1 }} />
-                }}
-              />
+      {/* Print Header */}
+      <Box sx={{ display: 'none', '@media print': { display: 'block', mb: 3 } }}>
+         <Typography variant="h5" align="center" gutterBottom>
+            {tabValue === 0 ? 'État de Consommation Budgétaire' : 'Historique des Dépenses Budgétaires'}
+         </Typography>
+         <Typography variant="subtitle1" align="center">
+            Période: {mois}
+         </Typography>
+         <Typography variant="caption" display="block" align="center">
+            Imprimé le {new Date().toLocaleDateString()}
+         </Typography>
+      </Box>
 
-              <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Classification</TableCell>
-                      <TableCell align="right">Prévu</TableCell>
-                      <TableCell align="right">Consommé</TableCell>
-                      <TableCell align="right">Reste</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredBudgets.length > 0 ? (
-                      filteredBudgets.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell>{row.description}</TableCell>
-                          <TableCell>{row.classification}</TableCell>
-                          <TableCell align="right">{row.montant_prevu?.toLocaleString()} USD</TableCell>
-                          <TableCell align="right">{row.montant_consomme?.toLocaleString()} USD</TableCell>
-                          <TableCell align="right" sx={{ 
-                            color: (row.montant_prevu - row.montant_consomme) < 0 ? 'error.main' : 'success.main',
-                            fontWeight: 'bold'
-                          }}>
-                            {(row.montant_prevu - row.montant_consomme)?.toLocaleString()} USD
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} align="center">Aucun budget trouvé pour ce mois</TableCell>
+      {/* TAB 0: ETAT BUDGET */}
+      {tabValue === 0 && (
+        <Box>
+            {/* Import Section - No Print */}
+            <Box sx={{ '@media print': { display: 'none' }, mb: 3 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Importer Budget (Excel)</Typography>
+                  <Grid container spacing={2} alignItems="center">
+                    <Grid size="grow">
+                      <input
+                        accept=".xlsx, .xls"
+                        style={{ display: 'none' }}
+                        id="raised-button-file"
+                        type="file"
+                        onChange={handleFileChange}
+                      />
+                      <label htmlFor="raised-button-file">
+                        <Button variant="outlined" component="span" startIcon={<CloudUpload />}>
+                          Choisir fichier
+                        </Button>
+                      </label>
+                      {file && <Typography variant="caption" sx={{ ml: 1 }}>{file.name}</Typography>}
+                    </Grid>
+                    <Grid size="auto">
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleImport}
+                        disabled={!file || loading}
+                      >
+                        {loading ? <CircularProgress size={24} /> : 'Importer'}
+                      </Button>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Box>
+
+            {/* Summary Cards */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid size={{ xs: 12, md: 4 }}>
+                    <Paper sx={{ p: 2, bgcolor: '#f5f5f5' }}>
+                        <Typography variant="subtitle2" color="text.secondary">Total Alloué</Typography>
+                        <Typography variant="h6">{(totalAlloue || 0).toLocaleString()} USD</Typography>
+                    </Paper>
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                    <Paper sx={{ p: 2, bgcolor: '#e3f2fd' }}>
+                        <Typography variant="subtitle2" color="text.secondary">Total Consommé</Typography>
+                        <Typography variant="h6" color="primary">{(totalConsomme || 0).toLocaleString()} USD</Typography>
+                    </Paper>
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                    <Paper sx={{ p: 2, bgcolor: pourcentageGlobal > 100 ? '#ffebee' : '#e8f5e9' }}>
+                        <Typography variant="subtitle2" color="text.secondary">Taux d'exécution</Typography>
+                        <Typography variant="h6" color={pourcentageGlobal > 100 ? 'error' : 'success'}>
+                            {pourcentageGlobal.toFixed(2)}%
+                        </Typography>
+                    </Paper>
+                </Grid>
+            </Grid>
+
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead sx={{ bgcolor: '#eee' }}>
+                  <TableRow>
+                    <TableCell>Description</TableCell>
+                    <TableCell>Catégorie</TableCell>
+                    <TableCell align="right">Alloué</TableCell>
+                    <TableCell align="right">Consommé</TableCell>
+                    <TableCell align="right">Solde</TableCell>
+                    <TableCell align="right">%</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredBudgets.map((budget) => {
+                    const solde = Number(budget.montant_prevu || 0) - Number(budget.montant_consomme || 0);
+                    const percent = Number(budget.montant_prevu || 0) > 0 
+                        ? (Number(budget.montant_consomme || 0) / Number(budget.montant_prevu || 0)) * 100 
+                        : 0;
+                    
+                    return (
+                      <TableRow key={budget.id} hover>
+                        <TableCell>{budget.description}</TableCell>
+                        <TableCell>{budget.classification || '-'}</TableCell>
+                        <TableCell align="right">{Number(budget.montant_prevu || 0).toLocaleString()}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', color: Number(budget.montant_consomme || 0) > 0 ? 'primary.main' : 'inherit' }}>
+                            {Number(budget.montant_consomme || 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: solde < 0 ? 'error.main' : 'success.main' }}>
+                            {solde.toLocaleString()}
+                        </TableCell>
+                        <TableCell align="right">
+                             <Chip 
+                                label={`${percent.toFixed(0)}%`} 
+                                size="small" 
+                                color={percent > 100 ? 'error' : percent > 80 ? 'warning' : 'success'} 
+                                variant="outlined"
+                             />
+                        </TableCell>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    );
+                  })}
+                  {filteredBudgets.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">Aucun budget trouvé</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+        </Box>
+      )}
+
+      {/* TAB 1: HISTORIQUE */}
+      {tabValue === 1 && (
+          <Box>
+              <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                      <TableHead sx={{ bgcolor: '#eee' }}>
+                          <TableRow>
+                              <TableCell>Date</TableCell>
+                              <TableCell>Réquisition</TableCell>
+                              <TableCell>Demandeur</TableCell>
+                              <TableCell>Service</TableCell>
+                              <TableCell>Ligne Budgétaire</TableCell>
+                              <TableCell align="right">Montant Req.</TableCell>
+                              <TableCell align="right">Budget Alloué</TableCell>
+                              <TableCell align="right">Total Consommé</TableCell>
+                              <TableCell align="right">Reste à Consommer</TableCell>
+                              <TableCell>Statut</TableCell>
+                          </TableRow>
+                      </TableHead>
+                      <TableBody>
+                          {history.map((item, index) => {
+                              const reste = Number(item.montant_prevu || 0) - Number(item.montant_consomme || 0);
+                              return (
+                              <TableRow key={`${item.requisition_id}-${index}`}>
+                                  <TableCell>{new Date(item.date_creation).toLocaleDateString()}</TableCell>
+                                  <TableCell>{item.numero_requisition}</TableCell>
+                                  <TableCell>{item.demandeur}</TableCell>
+                                  <TableCell>{item.service}</TableCell>
+                                  <TableCell>{item.ligne_budgetaire}</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                                      {Number(item.montant).toLocaleString()} {item.devise}
+                                  </TableCell>
+                                  <TableCell align="right" sx={{ color: 'text.secondary' }}>
+                                      {Number(item.montant_prevu || 0).toLocaleString()} USD
+                                  </TableCell>
+                                  <TableCell align="right" sx={{ color: 'primary.main' }}>
+                                      {Number(item.montant_consomme || 0).toLocaleString()} USD
+                                  </TableCell>
+                                  <TableCell align="right" sx={{ 
+                                      fontWeight: 'bold', 
+                                      color: reste < 0 ? 'error.main' : 'success.main' 
+                                  }}>
+                                      {reste.toLocaleString()} USD
+                                  </TableCell>
+                                  <TableCell>
+                                      <Chip label={item.statut} size="small" variant="outlined" />
+                                  </TableCell>
+                              </TableRow>
+                              );
+                          })}
+                          {history.length === 0 && (
+                              <TableRow>
+                                  <TableCell colSpan={10} align="center">Aucun historique pour cette période</TableCell>
+                              </TableRow>
+                          )}
+                      </TableBody>
+                  </Table>
               </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+          </Box>
+      )}
+
     </Container>
   );
 };

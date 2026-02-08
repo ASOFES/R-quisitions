@@ -163,10 +163,13 @@ function initializeDatabasePostgres() {
                         'ALTER TABLE requisitions ADD COLUMN IF NOT EXISTS niveau_retour VARCHAR(20)',
                         'ALTER TABLE requisitions ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(id)',
                         'ALTER TABLE requisitions ADD COLUMN IF NOT EXISTS mode_paiement VARCHAR(20)',
+                        'ALTER TABLE requisitions ADD COLUMN IF NOT EXISTS budget_impacted BOOLEAN DEFAULT FALSE',
                         'ALTER TABLE users ADD COLUMN IF NOT EXISTS zone_id INTEGER REFERENCES zones(id)',
                         'ALTER TABLE lignes_requisition ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(id)',
                         'CREATE TABLE IF NOT EXISTS app_settings (key VARCHAR(50) PRIMARY KEY, value TEXT, description TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)',
-                        "INSERT INTO app_settings (key, value, description) VALUES ('exchange_rate', '2800', 'Taux de change USD/CDF') ON CONFLICT DO NOTHING"
+                        "INSERT INTO app_settings (key, value, description) VALUES ('exchange_rate', '2800', 'Taux de change USD/CDF') ON CONFLICT DO NOTHING",
+                        'ALTER TABLE budgets ADD COLUMN IF NOT EXISTS service_id INTEGER REFERENCES services(id)',
+                        'ALTER TABLE budgets ADD CONSTRAINT unique_budget_service_mois UNIQUE (description, service_id, mois)'
                     ];
 
                     // Exécuter les migrations en séquence
@@ -229,7 +232,8 @@ function runSqliteMigrations() {
         'ALTER TABLE users ADD COLUMN zone_id INTEGER REFERENCES zones(id)',
         'ALTER TABLE requisitions ADD COLUMN niveau_retour VARCHAR(20)',
         'ALTER TABLE requisitions ADD COLUMN site_id INTEGER REFERENCES sites(id)',
-        'ALTER TABLE requisitions ADD COLUMN mode_paiement VARCHAR(20)'
+        'ALTER TABLE requisitions ADD COLUMN mode_paiement VARCHAR(20)',
+        'ALTER TABLE requisitions ADD COLUMN budget_impacted BOOLEAN DEFAULT 0'
     ];
 
     migrations.forEach(migration => {
