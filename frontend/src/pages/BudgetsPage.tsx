@@ -74,6 +74,17 @@ const BudgetsPage: React.FC = () => {
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [newBudgetLine, setNewBudgetLine] = useState({ description: '', montant_prevu: '', classification: 'NON_ALLOUE' });
 
+  const filteredBudgets = budgets.filter(b => {
+    const matchesSearch = b.description.toLowerCase().includes(search.toLowerCase()) ||
+                          b.classification?.toLowerCase().includes(search.toLowerCase());
+    const matchesConsumption = hideUnconsumed ? b.montant_consomme > 0 : true;
+    return matchesSearch && matchesConsumption;
+  });
+
+  const totalAlloue = filteredBudgets.reduce((sum, b) => sum + Number(b.montant_prevu || 0), 0);
+  const totalConsomme = filteredBudgets.reduce((sum, b) => sum + Number(b.montant_consomme || 0), 0);
+  const pourcentageGlobal = totalAlloue > 0 ? (totalConsomme / totalAlloue) * 100 : 0;
+
   useEffect(() => {
     if (tabValue === 0) {
       fetchBudgets();
@@ -261,9 +272,18 @@ const BudgetsPage: React.FC = () => {
     autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
+        foot: [[
+            "COÛTS TOTAUX",
+            "",
+            formatCurrencySafe(totalAlloue),
+            formatCurrencySafe(totalConsomme),
+            formatCurrencySafe(totalAlloue - totalConsomme),
+            `${((totalAlloue > 0 ? (totalConsomme / totalAlloue) : 0) * 100).toFixed(0)}%`
+        ]],
         startY: 45,
         styles: { fontSize: 8 },
         headStyles: { fillColor: [41, 128, 185] },
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
     });
 
     const pageCount = doc.getNumberOfPages();
@@ -371,6 +391,41 @@ const BudgetsPage: React.FC = () => {
                 right: { style: 'thin' }
             };
         });
+    });
+
+    // Add Total Row
+    const totalRowIndex = headerRowIdx + 1 + filteredBudgets.length;
+    const totalRow = worksheet.getRow(totalRowIndex);
+    const totalSolde = totalAlloue - totalConsomme;
+    
+    totalRow.values = [
+        "COÛTS TOTAUX",
+        "",
+        totalAlloue,
+        totalConsomme,
+        totalSolde,
+        (totalAlloue > 0 ? (totalConsomme / totalAlloue) : 0)
+    ];
+
+    // Styling Total Row
+    totalRow.font = { bold: true };
+    totalRow.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+    };
+    totalRow.getCell(3).numFmt = '#,##0.00 "USD"';
+    totalRow.getCell(4).numFmt = '#,##0.00 "USD"';
+    totalRow.getCell(5).numFmt = '#,##0.00 "USD"';
+    totalRow.getCell(6).numFmt = '0%';
+    
+    totalRow.eachCell({ includeEmpty: true }, (cell) => {
+         cell.border = {
+            top: { style: 'medium' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+        };
     });
 
     // Auto width
@@ -559,17 +614,6 @@ const BudgetsPage: React.FC = () => {
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
-
-  const filteredBudgets = budgets.filter(b => {
-    const matchesSearch = b.description.toLowerCase().includes(search.toLowerCase()) ||
-                          b.classification?.toLowerCase().includes(search.toLowerCase());
-    const matchesConsumption = hideUnconsumed ? b.montant_consomme > 0 : true;
-    return matchesSearch && matchesConsumption;
-  });
-
-  const totalAlloue = filteredBudgets.reduce((sum, b) => sum + Number(b.montant_prevu || 0), 0);
-  const totalConsomme = filteredBudgets.reduce((sum, b) => sum + Number(b.montant_consomme || 0), 0);
-  const pourcentageGlobal = totalAlloue > 0 ? (totalConsomme / totalAlloue) * 100 : 0;
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>

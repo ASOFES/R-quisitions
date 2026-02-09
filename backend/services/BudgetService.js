@@ -106,6 +106,13 @@ class BudgetService {
                 }
 
                 if (description && montant !== undefined) {
+                    // Filter out Total/Summary lines
+                    const lowerDesc = String(description).trim().toLowerCase();
+                    if (lowerDesc.includes('total') || lowerDesc.includes('totaux') || lowerDesc.includes('sous-total')) {
+                        console.log(`[BudgetService] Ignored total/summary line: "${description}"`);
+                        continue;
+                    }
+
                     // Nettoyage montant (enlever devises, espaces, virgules -> points)
                     let cleanMontant = montant;
                     if (typeof montant === 'string') {
