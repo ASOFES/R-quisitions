@@ -21,12 +21,17 @@ import {
   IconButton,
   Tabs,
   Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   FormControlLabel,
   Switch,
   Chip
 } from '@mui/material';
-import { CloudUpload, Refresh, Search, Print, History, AccountBalanceWallet, PictureAsPdf, TableView } from '@mui/icons-material';
+import { CloudUpload, Refresh, Search, Print, History, AccountBalanceWallet, PictureAsPdf, TableView, Add } from '@mui/icons-material';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
@@ -56,6 +61,7 @@ interface BudgetHistoryItem {
 }
 
 const BudgetsPage: React.FC = () => {
+  const { user } = useAuth();
   const [tabValue, setTabValue] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [mois, setMois] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -65,6 +71,8 @@ const BudgetsPage: React.FC = () => {
   const [history, setHistory] = useState<BudgetHistoryItem[]>([]);
   const [search, setSearch] = useState('');
   const [hideUnconsumed, setHideUnconsumed] = useState(false);
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [newBudgetLine, setNewBudgetLine] = useState({ description: '', montant_prevu: '', classification: 'NON_ALLOUE' });
 
   useEffect(() => {
     if (tabValue === 0) {
@@ -95,6 +103,27 @@ const BudgetsPage: React.FC = () => {
       console.error('Erreur chargement historique:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddLine = async () => {
+    if (!newBudgetLine.description || !newBudgetLine.montant_prevu) {
+      setMessage({ type: 'error', text: 'Veuillez remplir tous les champs obligatoires.' });
+      return;
+    }
+
+    try {
+      await api.post('/budgets/line', {
+        ...newBudgetLine,
+        mois
+      });
+      setMessage({ type: 'success', text: 'Ligne budgétaire ajoutée avec succès.' });
+      setOpenAddDialog(false);
+      setNewBudgetLine({ description: '', montant_prevu: '', classification: 'NON_ALLOUE' });
+      fetchBudgets();
+    } catch (error: any) {
+      console.error('Erreur ajout ligne:', error);
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Erreur lors de l\'ajout.' });
     }
   };
 
@@ -691,6 +720,19 @@ const BudgetsPage: React.FC = () => {
                           Choisir fichier
                         </Button>
                       </label>
+
+                      {user?.role === 'admin' && (
+                        <Button
+                          variant="outlined"
+                          color="secondary"
+                          startIcon={<Add />}
+                          onClick={() => setOpenAddDialog(true)}
+                          disabled={loading}
+                          sx={{ ml: 1 }}
+                        >
+                          Ajouter Ligne
+                        </Button>
+                      )}
                       {file && <Typography variant="caption" sx={{ ml: 1 }}>{file.name}</Typography>}
                     </Grid>
                     <Grid size="auto">
@@ -845,6 +887,49 @@ const BudgetsPage: React.FC = () => {
           </Box>
       )}
 
+      {/* Modal Ajout Ligne Budget */}
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)}>
+        <DialogTitle>Ajouter une ligne budgétaire</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Description (Ligne Budgétaire)"
+            fullWidth
+            value={newBudgetLine.description}
+            onChange={(e) => setNewBudgetLine({ ...newBudgetLine, description: e.target.value })}
+          />
+          <TextField
+            margin="dense"
+            label="Montant Prévu (USD)"
+            type="number"
+            fullWidth
+            value={newBudgetLine.montant_prevu}
+            onChange={(e) => setNewBudgetLine({ ...newBudgetLine, montant_prevu: e.target.value })}
+          />
+          <TextField
+            margin="dense"
+            label="Classification"
+            fullWidth
+            select
+            value={newBudgetLine.classification}
+            onChange={(e) => setNewBudgetLine({ ...newBudgetLine, classification: e.target.value })}
+          >
+            <MenuItem value="NON_ALLOUE">Non Alloué</MenuItem>
+            <MenuItem value="FIXE">Fixe</MenuItem>
+            <MenuItem value="VARIABLE">Variable</MenuItem>
+          </TextField>
+          <Typography variant="caption" display="block" sx={{ mt: 2 }}>
+            Mois cible : {mois}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenAddDialog(false)}>Annuler</Button>
+          <Button onClick={handleAddLine} variant="contained" color="primary">
+            Ajouter
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

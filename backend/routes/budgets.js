@@ -8,6 +8,41 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+// Add a single budget line manually (Admin only)
+router.post('/line', authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+        const { description, montant_prevu, mois, classification } = req.body;
+
+        if (!description || !montant_prevu || !mois) {
+            return res.status(400).json({ error: 'Description, montant prévu et mois sont requis' });
+        }
+
+        // Check if line exists
+        const existing = await dbUtils.get(
+            'SELECT id FROM budgets WHERE description = ? AND mois = ?',
+            [description, mois]
+        );
+
+        if (existing) {
+            return res.status(400).json({ error: 'Cette ligne budgétaire existe déjà pour ce mois.' });
+        }
+
+        const result = await dbUtils.run(
+            'INSERT INTO budgets (description, montant_prevu, montant_consomme, mois, classification) VALUES (?, ?, 0, ?, ?)',
+            [description, parseFloat(montant_prevu), mois, classification || 'NON_ALLOUE']
+        );
+
+        res.status(201).json({ 
+            message: 'Ligne budgétaire ajoutée avec succès',
+            id: result.id 
+        });
+
+    } catch (error) {
+        console.error('Erreur ajout ligne budget:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Import budget via Excel
 router.post('/import', authenticateToken, requireRole(['admin', 'comptable', 'pm', 'analyste']), upload.single('file'), async (req, res) => {
     try {
