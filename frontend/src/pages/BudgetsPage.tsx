@@ -29,7 +29,7 @@ import {
   Switch,
   Chip
 } from '@mui/material';
-import { CloudUpload, Refresh, Search, Print, History, AccountBalanceWallet, PictureAsPdf, TableView, Add } from '@mui/icons-material';
+import { CloudUpload, Refresh, Search, Print, History, AccountBalanceWallet, PictureAsPdf, TableView, Add, Delete } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import jsPDF from 'jspdf';
@@ -135,6 +135,19 @@ const BudgetsPage: React.FC = () => {
     } catch (error: any) {
       console.error('Erreur ajout ligne:', error);
       setMessage({ type: 'error', text: error.response?.data?.error || 'Erreur lors de l\'ajout.' });
+    }
+  };
+
+  const handleDeleteLine = async (id: number, description: string) => {
+    if (window.confirm(`Êtes-vous sûr de vouloir supprimer la ligne budgétaire "${description}" ?`)) {
+        try {
+            await api.delete(`/budgets/${id}`);
+            setMessage({ type: 'success', text: 'Ligne supprimée avec succès.' });
+            fetchBudgets();
+        } catch (error: any) {
+            console.error('Erreur suppression:', error);
+            setMessage({ type: 'error', text: error.response?.data?.error || 'Erreur lors de la suppression.' });
+        }
     }
   };
 
@@ -839,7 +852,20 @@ const BudgetsPage: React.FC = () => {
                     
                     return (
                       <TableRow key={budget.id} hover>
-                        <TableCell>{budget.description}</TableCell>
+                        <TableCell>
+                          {budget.description}
+                          {user?.role === 'admin' && (
+                            <IconButton 
+                                size="small" 
+                                color="error" 
+                                onClick={() => handleDeleteLine(budget.id, budget.description)}
+                                sx={{ ml: 1, opacity: 0.5, '&:hover': { opacity: 1 } }}
+                                title="Supprimer la ligne"
+                            >
+                                <Delete fontSize="small" />
+                            </IconButton>
+                          )}
+                        </TableCell>
                         <TableCell>{budget.classification || '-'}</TableCell>
                         <TableCell align="right">{Number(budget.montant_prevu || 0).toLocaleString()}</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 'bold', color: Number(budget.montant_consomme || 0) > 0 ? 'primary.main' : 'inherit' }}>

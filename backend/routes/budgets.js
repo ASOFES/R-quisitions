@@ -43,6 +43,18 @@ router.post('/line', authenticateToken, requireRole(['admin']), async (req, res)
     }
 });
 
+// Delete a budget line (Admin only)
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        await dbUtils.run('DELETE FROM budgets WHERE id = ?', [id]);
+        res.json({ message: 'Ligne budgétaire supprimée avec succès' });
+    } catch (error) {
+        console.error('Erreur suppression ligne budget:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Import budget via Excel
 router.post('/import', authenticateToken, requireRole(['admin', 'comptable', 'pm', 'analyste']), upload.single('file'), async (req, res) => {
     try {
