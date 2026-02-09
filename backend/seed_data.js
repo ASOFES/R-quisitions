@@ -88,12 +88,12 @@ async function seedData() {
                 );
                 console.log(`✅ Utilisateur ${user.username} ajouté.`);
             } else {
-                // Mise à jour complète pour assurer la cohérence (notamment si trouvé par email mais mauvais username) et RESET PASSWORD
+                // Mise à jour partielle pour assurer la cohérence (role, service, email) MAIS SANS écraser le mot de passe
                 await dbUtils.run(
-                    'UPDATE users SET username = ?, email = ?, role = ?, service_id = ?, actif = TRUE, password = ? WHERE id = ?',
-                    [user.username, email, user.role, user.service ? user.service.id : null, passwordHash, existing.id]
+                    'UPDATE users SET username = ?, email = ?, role = ?, service_id = ?, actif = TRUE WHERE id = ?',
+                    [user.username, email, user.role, user.service ? user.service.id : null, existing.id]
                 );
-                console.log(`🔄 Utilisateur ${user.username} vérifié et mis à jour.`);
+                console.log(`🔄 Utilisateur ${user.username} vérifié et mis à jour (mot de passe conservé).`);
             }
         }
 
