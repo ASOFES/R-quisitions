@@ -512,6 +512,7 @@ export default function RequisitionForm() {
             <Autocomplete
               freeSolo
               fullWidth
+              forcePopupIcon={true}
               options={budgetDescriptions}
               getOptionLabel={(option) => typeof option === 'string' ? option : option.description}
                isOptionEqualToValue={(option, value) => {
@@ -519,7 +520,7 @@ export default function RequisitionForm() {
                  return option.description === value.description;
                }}
                renderOption={(props, option) => {
-                 // @ts-ignore - props is not fully compatible with li but it works
+                 // @ts-ignore
                  return (
                   <li {...props} style={{ color: option.is_manual ? 'red' : 'inherit' }}>
                     {option.description}
@@ -647,13 +648,34 @@ export default function RequisitionForm() {
                 {items.map((item, index) => (
                   <TableRow key={item.id}>
                     <TableCell>
-                      <TextField
+                      <Autocomplete
+                        freeSolo
                         fullWidth
                         size="small"
-                        variant="standard"
-                        placeholder="Description de l'article"
+                        forcePopupIcon={true}
+                        options={budgetDescriptions}
+                        getOptionLabel={(option) => typeof option === 'string' ? option : option.description}
+                        isOptionEqualToValue={(option, value) => {
+                          if (typeof value === 'string') return option.description === value;
+                          return option.description === value.description;
+                        }}
+                        renderOption={(props, option) => {
+                          // @ts-ignore
+                          return (
+                            <li {...props} style={{ color: option.is_manual ? 'red' : 'inherit' }}>
+                              {option.description}
+                            </li>
+                          );
+                        }}
                         value={item.description}
-                        onChange={(e) => handleUpdateItem(item.id, 'description', e.target.value)}
+                        onInputChange={(_, newValue) => handleUpdateItem(item.id, 'description', newValue)}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            variant="standard"
+                            placeholder="Description de l'article"
+                          />
+                        )}
                       />
                     </TableCell>
                     <TableCell>
