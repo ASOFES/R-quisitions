@@ -28,8 +28,8 @@ router.post('/line', authenticateToken, requireRole(['admin']), async (req, res)
         }
 
         const result = await dbUtils.run(
-            'INSERT INTO budgets (description, montant_prevu, montant_consomme, mois, classification) VALUES (?, ?, 0, ?, ?)',
-            [description, parseFloat(montant_prevu), mois, classification || 'NON_ALLOUE']
+            'INSERT INTO budgets (description, montant_prevu, montant_consomme, mois, classification, is_manual) VALUES (?, ?, 0, ?, ?, ?)',
+            [description, parseFloat(montant_prevu), mois, classification || 'NON_ALLOUE', true]
         );
 
         res.status(201).json({ 

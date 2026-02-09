@@ -27,9 +27,10 @@ import {
   DialogActions,
   FormControlLabel,
   Switch,
-  Chip
+  Chip,
+  Tooltip
 } from '@mui/material';
-import { CloudUpload, Refresh, Search, Print, History, AccountBalanceWallet, PictureAsPdf, TableView, Add, Delete } from '@mui/icons-material';
+import { CloudUpload, Refresh, Search, Print, History, AccountBalanceWallet, PictureAsPdf, TableView, Add, Delete, EditNote } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import jsPDF from 'jspdf';
@@ -44,6 +45,7 @@ interface Budget {
   montant_consomme: number;
   mois: string;
   classification?: string;
+  is_manual?: boolean;
 }
 
 interface BudgetHistoryItem {
@@ -854,6 +856,11 @@ const BudgetsPage: React.FC = () => {
                       <TableRow key={budget.id} hover>
                         <TableCell>
                           {budget.description}
+                          {budget.is_manual && (
+                            <Tooltip title="Ligne ajoutée manuellement">
+                                <EditNote fontSize="small" color="primary" sx={{ ml: 1, verticalAlign: 'middle' }} />
+                            </Tooltip>
+                          )}
                           {user?.role === 'admin' && (
                             <IconButton 
                                 size="small" 
