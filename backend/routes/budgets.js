@@ -117,8 +117,8 @@ router.get('/', authenticateToken, async (req, res) => {
 // Get unique budget descriptions for dropdowns
 router.get('/descriptions', authenticateToken, async (req, res) => {
     try {
-        const descriptions = await dbUtils.all('SELECT DISTINCT description FROM budgets ORDER BY description');
-        res.json(descriptions.map(row => row.description));
+        const descriptions = await dbUtils.all('SELECT description, MAX(is_manual) as is_manual FROM budgets GROUP BY description ORDER BY description');
+        res.json(descriptions);
     } catch (error) {
         console.error('Erreur récupération descriptions budgets:', error);
         res.status(500).json({ error: error.message });

@@ -88,7 +88,7 @@ export default function RequisitionForm() {
   const [relatedRequisition, setRelatedRequisition] = useState<any>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
-  const [budgetDescriptions, setBudgetDescriptions] = useState<string[]>([]);
+  const [budgetDescriptions, setBudgetDescriptions] = useState<{description: string, is_manual: boolean}[]>([]);
   
   // Vérifier si c'est une réponse à une réquisition existante ou une modification
   const relatedRequisitionId = searchParams.get('related_to');
@@ -513,6 +513,19 @@ export default function RequisitionForm() {
               freeSolo
               fullWidth
               options={budgetDescriptions}
+              getOptionLabel={(option) => typeof option === 'string' ? option : option.description}
+               isOptionEqualToValue={(option, value) => {
+                 if (typeof value === 'string') return option.description === value;
+                 return option.description === value.description;
+               }}
+               renderOption={(props, option) => {
+                 // @ts-ignore - props is not fully compatible with li but it works
+                 return (
+                  <li {...props} style={{ color: option.is_manual ? 'red' : 'inherit' }}>
+                    {option.description}
+                  </li>
+                );
+              }}
               value={formData.objet}
               onInputChange={(_, newValue) => setFormData(prev => ({ ...prev, objet: newValue }))}
               renderInput={(params) => (

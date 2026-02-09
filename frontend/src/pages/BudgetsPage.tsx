@@ -854,11 +854,11 @@ const BudgetsPage: React.FC = () => {
                     
                     return (
                       <TableRow key={budget.id} hover>
-                        <TableCell>
+                        <TableCell sx={{ color: budget.is_manual ? 'red' : 'inherit', fontWeight: budget.is_manual ? 'bold' : 'normal' }}>
                           {budget.description}
                           {budget.is_manual && (
                             <Tooltip title="Ligne ajoutée manuellement">
-                                <EditNote fontSize="small" color="primary" sx={{ ml: 1, verticalAlign: 'middle' }} />
+                                <EditNote fontSize="small" color="error" sx={{ ml: 1, verticalAlign: 'middle' }} />
                             </Tooltip>
                           )}
                           {user?.role === 'admin' && (
