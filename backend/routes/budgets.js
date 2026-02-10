@@ -117,7 +117,9 @@ router.get('/', authenticateToken, async (req, res) => {
 // Get unique budget descriptions for dropdowns
 router.get('/descriptions', authenticateToken, async (req, res) => {
     try {
-        const descriptions = await dbUtils.all('SELECT description, MAX(is_manual) as is_manual FROM budgets GROUP BY description ORDER BY description');
+        // Compatibility fix for Postgres (MAX(boolean) fails) vs SQLite
+        // We cast to integer: TRUE->1, FALSE->0.
+        const descriptions = await dbUtils.all('SELECT description, MAX(CAST(is_manual AS INTEGER)) as is_manual FROM budgets GROUP BY description ORDER BY description');
         res.json(descriptions);
     } catch (error) {
         console.error('Erreur récupération descriptions budgets:', error);
