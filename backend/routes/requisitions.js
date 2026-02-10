@@ -223,8 +223,19 @@ router.get('/', authenticateToken, async (req, res) => {
         else if (user.role === 'gm') visibleLevels = ['gm', 'paiement', 'justificatif', 'termine'];
         
         const placeholders = visibleLevels.map(() => '?').join(', ');
-        query += ` WHERE (r.niveau IN (${placeholders})) OR (s.chef_id = ? AND r.niveau = ?) ORDER BY r.created_at DESC`;
+        
+        // Base logic: Visible levels OR Chef override
+        let whereClause = `(r.niveau IN (${placeholders})) OR (s.chef_id = ? AND r.niveau = ?)`;
         params.push(...visibleLevels, user.id, 'approbation_service');
+
+        // SERVICE RESTRICTION:
+        // Validateur, Challenger, PM must only see requisitions from their own service
+        if (['validateur', 'challenger', 'pm'].includes(user.role) && user.service_id) {
+            whereClause = `(${whereClause}) AND r.service_id = ?`;
+            params.push(user.service_id);
+        }
+
+        query += ` WHERE ${whereClause} ORDER BY r.created_at DESC`;
       } else {
          // Fallback si rôle inconnu mais potentiellement chef
          query += ' WHERE (s.chef_id = ? AND r.niveau = ?) ORDER BY r.created_at DESC';
