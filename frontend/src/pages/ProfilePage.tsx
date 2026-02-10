@@ -40,27 +40,28 @@ import {
   Timeline,
   Person,
   AttachFile,
+  Lock,
+  Draw,
 } from '@mui/icons-material';
 import RequisitionService from '../services/RequisitionService';
 import { useAuth } from '../context/AuthContext';
-import WorkflowTracker from '../components/WorkflowTracker';
 
 interface UserProfile {
   id: number;
   username: string;
   email: string;
-  nom: string;
-  prenom: string;
-  telephone?: string;
+  nom_complet: string;
   role: string;
   service_nom: string;
   service_id: number;
-  niveau: string;
+  zone_nom: string;
+  zone_id: number;
   created_at: string;
-  last_login?: string;
-  total_requisitions: number;
-  requisitions_en_cours: number;
-  requisitions_validees: number;
+  signature_url?: string;
+  // Stats
+  total_requisitions?: number;
+  requisitions_en_cours?: number;
+  requisitions_validees?: number;
 }
 
 interface RequisitionSummary {
@@ -84,8 +85,18 @@ const ProfilePage: React.FC = () => {
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState<Partial<UserProfile>>({});
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [selectedRequisition, setSelectedRequisition] = useState<any>(null);
-  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  
+  // Password Change
+  const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  // Signature
+  const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -96,98 +107,73 @@ const ProfilePage: React.FC = () => {
 
   const loadProfileData = async () => {
     try {
-      if (!user) return;
-
-      let userRequisitions: any[] = [];
       const token = localStorage.getItem('token');
+      if (!token) return;
 
-      if (token) {
-        try {
-          // Récupérer les réquisitions depuis l'API du backend
-          const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
+      // 1. Fetch Profile
+      const profileRes = await fetch(`${API_BASE_URL}/api/profile`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!profileRes.ok) throw new Error('Erreur chargement profil');
+      const profileData = await profileRes.json();
 
-          if (response.ok) {
-            const data = await response.json();
-            // Filtrer pour n'avoir que les réquisitions de l'utilisateur connecté
-            // Note: L'API retourne déjà filtré pour 'emetteur', mais 'admin' voit tout.
-            // Pour le profil, on veut SES réquisitions (si l'admin en a fait).
-            // Mais si l'utilisateur est admin, user.id devrait matcher emetteur_id.
-            // Vérifions les champs retournés par l'API (basé sur RequisitionsListSimple)
-            userRequisitions = data.filter((req: any) => req.emetteur_id === user.id).map((req: any) => ({
-              ...req,
-              id: req.id,
-              reference: req.numero,
-              statut: req.statut === 'valide' ? 'validee' : (req.statut === 'refuse' ? 'refusee' : req.statut),
-              montant: req.montant_usd || req.montant_cdf || 0,
-              devise: req.montant_usd ? 'USD' : 'CDF',
-              nb_pieces: req.nb_pieces || 0
+      // 2. Fetch Requisitions Stats (reuse existing logic or fetch separately)
+      // For now we will just use the requisitions endpoint to calculate stats
+      const reqRes = await fetch(`${API_BASE_URL}/api/requisitions`, {
+         headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      let stats = {
+          total_requisitions: 0,
+          requisitions_en_cours: 0,
+          requisitions_validees: 0
+      };
+      let recentReqs: RequisitionSummary[] = [];
+
+      if (reqRes.ok) {
+          const reqData = await reqRes.json();
+          // Filter own requisitions
+          const myReqs = reqData.filter((r: any) => r.emetteur_id === profileData.id);
+          
+          stats = {
+              total_requisitions: myReqs.length,
+              requisitions_en_cours: myReqs.filter((r: any) => ['en_cours', 'soumise', 'analyste', 'validateur', 'finance', 'tresorerie', 'dg'].includes(r.statut)).length,
+              requisitions_validees: myReqs.filter((r: any) => r.statut === 'validee' || r.statut === 'payee' || r.statut === 'terminee').length
+          };
+
+          recentReqs = myReqs
+            .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 5)
+            .map((req: any) => ({
+                id: req.id,
+                reference: req.numero,
+                objet: req.objet,
+                montant: req.montant_usd || req.montant_cdf,
+                devise: req.montant_usd ? 'USD' : 'CDF',
+                statut: req.statut,
+                urgence: 'normale', // Default
+                created_at: req.created_at,
+                nb_pieces: req.nb_pieces || 0
             }));
-          }
-        } catch (err) {
-          console.error('Erreur fetch API:', err);
-        }
       }
 
-      // Fallback si pas de données API (ou pas de token)
-      if (userRequisitions.length === 0) {
-        const requisitionService = RequisitionService.getInstance();
-        const allRequisitions = requisitionService.getAllRequisitions();
-        userRequisitions = allRequisitions.filter(req => req.emetteur_id === user.id);
-      }
-      
-      // Calculer les statistiques
-      const stats = {
-        total_requisitions: userRequisitions.length,
-        requisitions_en_cours: userRequisitions.filter(r => r.statut === 'en_cours' || r.statut === 'soumise').length,
-        requisitions_validees: userRequisitions.filter(r => r.statut === 'validee').length,
-      };
-      
-      // Créer le profil avec les vraies données de l'utilisateur connecté
-      const userProfile: UserProfile = {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        nom: user.nom_complet ? user.nom_complet.split(' ')[0] : user.username,
-        prenom: user.nom_complet && user.nom_complet.split(' ').length > 1 ? user.nom_complet.split(' ').slice(1).join(' ') : '',
-        telephone: '', // Non disponible dans l'objet User standard
-        role: user.role,
-        service_nom: user.service_nom || 'N/A',
-        service_id: user.service_id || 0,
-        niveau: 'N1',
-        created_at: new Date().toISOString(),
-        last_login: new Date().toISOString(),
-        ...stats,
-      };
-
-      // Créer les réquisitions récentes
-      const recentReqs: RequisitionSummary[] = userRequisitions
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 5)
-        .map(req => ({
-          id: req.id,
-          reference: req.reference || `REQ-${req.id}`,
-          objet: req.objet,
-          montant: req.montant,
-          devise: req.devise,
-          statut: req.statut,
-          urgence: req.urgence || 'normale',
-          created_at: req.created_at,
-          nb_pieces: req.nb_pieces
-        }));
-
-      setProfile(userProfile);
+      setProfile({ ...profileData, ...stats });
       setRecentRequisitions(recentReqs);
-      setLoading(false);
+      setFormData({
+          nom_complet: profileData.nom_complet,
+          email: profileData.email
+      });
       
-      console.log('📊 Profil chargé avec stats:', stats);
-      console.log('📋 Réquisitions récentes:', recentReqs.length);
+      if (profileData.signature_url) {
+          // Adjust URL if relative
+          setSignaturePreview(profileData.signature_url.startsWith('http') ? profileData.signature_url : `${API_BASE_URL}${profileData.signature_url}`);
+      }
+
     } catch (error) {
-      console.error('Erreur lors du chargement du profil:', error);
-      setAlert({ type: 'error', message: 'Erreur lors du chargement du profil' });
+      console.error('Erreur:', error);
+      setAlert({ type: 'error', message: 'Impossible de charger le profil' });
+    } finally {
       setLoading(false);
     }
   };
@@ -200,67 +186,115 @@ const ProfilePage: React.FC = () => {
     setEditMode(false);
     if (profile) {
       setFormData({
-        nom: profile.nom,
-        prenom: profile.prenom,
-        email: profile.email,
-        telephone: profile.telephone || '',
+        nom_complet: profile.nom_complet,
+        email: profile.email
       });
+      setSignatureFile(null);
+      // Restore original signature preview
+      if (profile.signature_url) {
+          setSignaturePreview(profile.signature_url.startsWith('http') ? profile.signature_url : `${API_BASE_URL}${profile.signature_url}`);
+      } else {
+          setSignaturePreview(null);
+      }
     }
+  };
+
+  const handleSignatureChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (event.target.files && event.target.files[0]) {
+          const file = event.target.files[0];
+          setSignatureFile(file);
+          
+          // Create preview
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              setSignaturePreview(reader.result as string);
+          };
+          reader.readAsDataURL(file);
+      }
   };
 
   const handleSave = async () => {
     try {
-      // Simuler la sauvegarde
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      // 1. Update basic info
+      const res = await fetch(`${API_BASE_URL}/api/profile`, {
+          method: 'PUT',
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(formData)
+      });
+
+      if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Erreur mise à jour profil');
+      }
+
+      // 2. Upload signature if changed
+      if (signatureFile) {
+          const formData = new FormData();
+          formData.append('signature', signatureFile);
+
+          const sigRes = await fetch(`${API_BASE_URL}/api/profile/signature`, {
+              method: 'POST',
+              headers: {
+                  'Authorization': `Bearer ${token}`
+              },
+              body: formData
+          });
+
+          if (!sigRes.ok) {
+               const err = await sigRes.json();
+               throw new Error(err.error || 'Erreur upload signature');
+          }
+      }
+
       setAlert({ type: 'success', message: 'Profil mis à jour avec succès' });
       setEditMode(false);
-      
-      if (profile) {
-        setProfile({
-          ...profile,
-          nom: formData.nom || profile.nom,
-          prenom: formData.prenom || profile.prenom,
-          email: formData.email || profile.email,
-          telephone: formData.telephone || profile.telephone,
-        });
+      setSignatureFile(null);
+      loadProfileData(); // Reload to get fresh data
+
+    } catch (error: any) {
+      console.error('Erreur sauvegarde:', error);
+      setAlert({ type: 'error', message: error.message });
+    }
+  };
+
+  const handlePasswordChange = async () => {
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+          setAlert({ type: 'error', message: 'Les nouveaux mots de passe ne correspondent pas' });
+          return;
       }
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde:', error);
-      setAlert({ type: 'error', message: 'Erreur lors de la sauvegarde du profil' });
-    }
-  };
 
-  const handleViewDetails = (requisition: RequisitionSummary) => {
-    const requisitionService = RequisitionService.getInstance();
-    const fullRequisition = requisitionService.getAllRequisitions().find(r => r.id === requisition.id);
-    setSelectedRequisition(fullRequisition);
-    setShowDetailsDialog(true);
-  };
+      try {
+          const token = localStorage.getItem('token');
+          const res = await fetch(`${API_BASE_URL}/api/profile`, {
+              method: 'PUT',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                  password: passwordData.currentPassword,
+                  new_password: passwordData.newPassword
+              })
+          });
 
-  const handleCloseDetailsDialog = () => {
-    setShowDetailsDialog(false);
-    setSelectedRequisition(null);
-  };
+          if (!res.ok) {
+              const err = await res.json();
+              throw new Error(err.error || 'Erreur changement mot de passe');
+          }
 
-  const getStatutColor = (statut: string) => {
-    switch (statut) {
-      case 'brouillon': return '#9e9e9e';
-      case 'soumise': return '#2196f3';
-      case 'en_cours': return '#ff9800';
-      case 'validee': return '#4caf50';
-      case 'refusee': return '#f44336';
-      case 'payee': return '#9c27b0';
-      default: return '#9e9e9e';
-    }
-  };
+          setAlert({ type: 'success', message: 'Mot de passe modifié avec succès' });
+          setOpenPasswordDialog(false);
+          setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
 
-  const getUrgenceColor = (urgence: string) => {
-    switch (urgence) {
-      case 'basse': return '#4caf50';
-      case 'normale': return '#2196f3';
-      case 'haute': return '#ff9800';
-      case 'urgente': return '#f44336';
-      default: return '#9e9e9e';
-    }
+      } catch (error: any) {
+          setAlert({ type: 'error', message: error.message });
+      }
   };
 
   if (loading) {
@@ -298,359 +332,226 @@ const ProfilePage: React.FC = () => {
         {/* Informations personnelles */}
         <Box sx={{ flex: '1', minWidth: 300, maxWidth: 400 }}>
           <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ textAlign: 'center', pb: 2 }}>
-              <Avatar
-                sx={{ 
-                  width: 80, 
-                  height: 80, 
-                  mx: 'auto', 
-                  mb: 2,
-                  bgcolor: 'primary.main',
-                  fontSize: '2rem'
-                }}
-              >
-                {profile?.nom?.[0]}{profile?.prenom?.[0]}
-              </Avatar>
-              
-              <Typography variant="h5" sx={{ mb: 1 }}>
-                {profile?.prenom} {profile?.nom}
-              </Typography>
-              
-              <Chip 
-                label={profile?.role?.toUpperCase()} 
-                color="primary" 
-                size="small" 
-                sx={{ mb: 2 }}
-              />
-              
-              <List dense>
+            <CardContent>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
+                <Avatar 
+                  sx={{ width: 100, height: 100, mb: 2, bgcolor: 'primary.main', fontSize: 40 }}
+                >
+                  {profile?.username?.charAt(0).toUpperCase()}
+                </Avatar>
+                <Typography variant="h5" gutterBottom>
+                  {profile?.nom_complet || profile?.username}
+                </Typography>
+                <Chip 
+                  label={profile?.role?.toUpperCase()} 
+                  color="primary" 
+                  variant="outlined" 
+                  size="small"
+                />
+              </Box>
+
+              <Divider sx={{ mb: 2 }} />
+
+              <List>
                 <ListItem>
-                  <ListItemIcon><Person color="primary" /></ListItemIcon>
-                  <ListItemText 
-                    primary="Nom d'utilisateur" 
-                    secondary={profile?.username} 
-                  />
+                  <ListItemIcon><Person /></ListItemIcon>
+                  {editMode ? (
+                      <TextField 
+                        fullWidth 
+                        label="Nom Complet" 
+                        value={formData.nom_complet || ''}
+                        onChange={(e) => setFormData({...formData, nom_complet: e.target.value})}
+                      />
+                  ) : (
+                      <ListItemText primary="Nom Complet" secondary={profile?.nom_complet} />
+                  )}
                 </ListItem>
                 <ListItem>
-                  <ListItemIcon><Email color="primary" /></ListItemIcon>
-                  <ListItemText 
-                    primary="Email" 
-                    secondary={
-                      editMode ? (
-                        <TextField
-                          fullWidth
-                          size="small"
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          variant="outlined"
-                        />
-                      ) : (
-                        profile?.email
-                      )
-                    } 
-                  />
+                  <ListItemIcon><Email /></ListItemIcon>
+                  {editMode ? (
+                      <TextField 
+                        fullWidth 
+                        label="Email" 
+                        value={formData.email || ''}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      />
+                  ) : (
+                      <ListItemText primary="Email" secondary={profile?.email} />
+                  )}
                 </ListItem>
                 <ListItem>
-                  <ListItemIcon><Phone color="primary" /></ListItemIcon>
-                  <ListItemText 
-                    primary="Téléphone" 
-                    secondary={
-                      editMode ? (
-                        <TextField
-                          fullWidth
-                          size="small"
-                          value={formData.telephone}
-                          onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
-                          variant="outlined"
-                        />
-                      ) : (
-                        profile?.telephone || 'Non renseigné'
-                      )
-                    } 
-                  />
+                  <ListItemIcon><Business /></ListItemIcon>
+                  <ListItemText primary="Service" secondary={profile?.service_nom || 'N/A'} />
                 </ListItem>
                 <ListItem>
-                  <ListItemIcon><Business color="primary" /></ListItemIcon>
-                  <ListItemText 
-                    primary="Service" 
-                    secondary={profile?.service_nom} 
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemIcon><Work color="primary" /></ListItemIcon>
-                  <ListItemText 
-                    primary="Niveau" 
-                    secondary={profile?.niveau} 
-                  />
+                  <ListItemIcon><Work /></ListItemIcon>
+                  <ListItemText primary="Zone" secondary={profile?.zone_nom || 'N/A'} />
                 </ListItem>
               </List>
-              
+
               <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                {editMode ? (
-                  <>
-                    <Button
-                      variant="contained"
-                      startIcon={<Save />}
-                      onClick={handleSave}
-                      fullWidth
-                    >
-                      Sauvegarder
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<Cancel />}
-                      onClick={handleCancel}
-                      fullWidth
-                    >
-                      Annuler
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    variant="contained"
-                    startIcon={<Edit />}
-                    onClick={handleEdit}
-                    fullWidth
-                  >
-                    Modifier le profil
-                  </Button>
-                )}
+                  {!editMode ? (
+                      <>
+                        <Button 
+                            variant="outlined" 
+                            startIcon={<Edit />} 
+                            fullWidth
+                            onClick={handleEdit}
+                        >
+                            Modifier
+                        </Button>
+                        <Button 
+                            variant="outlined" 
+                            color="secondary"
+                            startIcon={<Lock />} 
+                            fullWidth
+                            onClick={() => setOpenPasswordDialog(true)}
+                        >
+                            Mot de passe
+                        </Button>
+                      </>
+                  ) : (
+                      <>
+                        <Button 
+                            variant="contained" 
+                            startIcon={<Save />} 
+                            fullWidth
+                            onClick={handleSave}
+                        >
+                            Enregistrer
+                        </Button>
+                        <Button 
+                            variant="outlined" 
+                            color="error"
+                            startIcon={<Cancel />} 
+                            fullWidth
+                            onClick={handleCancel}
+                        >
+                            Annuler
+                        </Button>
+                      </>
+                  )}
               </Box>
             </CardContent>
           </Card>
         </Box>
 
-        {/* Statistiques */}
-        <Box sx={{ flex: '2', minWidth: 300 }}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-            <Box sx={{ flex: '1', minWidth: 150 }}>
-              <Card>
-                <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                  <Typography variant="h4" color="primary" sx={{ mb: 1 }}>
-                    {profile?.total_requisitions}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total des réquisitions
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-            <Box sx={{ flex: '1', minWidth: 150 }}>
-              <Card>
-                <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                  <Typography variant="h4" color="warning.main" sx={{ mb: 1 }}>
-                    {profile?.requisitions_en_cours}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    En cours
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-            <Box sx={{ flex: '1', minWidth: 150 }}>
-              <Card>
-                <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                  <Typography variant="h4" color="success.main" sx={{ mb: 1 }}>
-                    {profile?.requisitions_validees}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Validées
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-            <Box sx={{ flex: '1', minWidth: 150 }}>
-              <Card>
-                <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                  <Typography variant="h4" color="info.main" sx={{ mb: 1 }}>
-                    {Math.round((profile?.requisitions_validees || 0) / (profile?.total_requisitions || 1) * 100)}%
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Taux de validation
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-          </Box>
+        {/* Signature et Stats */}
+        <Box sx={{ flex: '1', minWidth: 300 }}>
+             {/* Signature Section */}
+             <Card sx={{ mb: 3 }}>
+                 <CardContent>
+                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6">Ma Signature</Typography>
+                        <Draw color="action" />
+                     </Box>
+                     <Divider sx={{ mb: 2 }} />
+                     
+                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2, border: '1px dashed #ccc', borderRadius: 1 }}>
+                         {signaturePreview ? (
+                             <img 
+                                src={signaturePreview} 
+                                alt="Signature" 
+                                style={{ maxWidth: '100%', maxHeight: 150, objectFit: 'contain' }} 
+                             />
+                         ) : (
+                             <Typography color="text.secondary">Aucune signature configurée</Typography>
+                         )}
+                     </Box>
 
-          {/* Réquisitions récentes */}
-          <Paper sx={{ mt: 3 }}>
-            <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
-              <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Assignment />
-                Mes réquisitions récentes
-              </Typography>
-            </Box>
-            <List>
-              {recentRequisitions.map((req: RequisitionSummary, index: number) => (
-                <React.Fragment key={req.id}>
-                  <ListItem sx={{ py: 1.5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                      <Box>
-                        <Typography variant="subtitle2" fontWeight="bold">
-                          {req.reference}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          {req.objet}
-                        </Typography>
-                        {req.nb_pieces !== undefined && req.nb_pieces > 0 && (
-                          <Chip
-                            label={`${req.nb_pieces} pièce(s)`}
-                            size="small"
-                            icon={<AttachFile sx={{ fontSize: 16 }} />}
-                            variant="outlined"
-                            sx={{ height: 20, fontSize: '0.7rem' }}
-                          />
-                        )}
-                      </Box>
-                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                          <Chip
-                            label={req.statut}
-                            size="small"
-                            sx={{ 
-                              backgroundColor: getStatutColor(req.statut), 
-                              color: 'white',
-                              fontSize: '0.7rem'
-                            }}
-                          />
-                          <Chip
-                            label={req.urgence}
-                            size="small"
-                            sx={{ 
-                              backgroundColor: getUrgenceColor(req.urgence), 
-                              color: 'white',
-                              fontSize: '0.7rem'
-                            }}
-                          />
-                          <Typography variant="caption" color="text.secondary">
-                            {new Date(req.created_at).toLocaleDateString()}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <Box sx={{ mt: 1 }}>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleViewDetails(req)}
-                          color="primary"
-                          title="Voir les détails et commentaires"
-                        >
-                          <Visibility sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Box>
-                    </Box>
-                  </ListItem>
-                  {index < recentRequisitions.length - 1 && <Divider />}
-                </React.Fragment>
-              ))}
-            </List>
-          </Paper>
+                     {editMode && (
+                         <Box sx={{ mt: 2 }}>
+                             <Button
+                                variant="contained"
+                                component="label"
+                                startIcon={<AttachFile />}
+                                fullWidth
+                             >
+                                 Téléverser une image
+                                 <input
+                                    type="file"
+                                    hidden
+                                    accept="image/*"
+                                    onChange={handleSignatureChange}
+                                 />
+                             </Button>
+                             <Typography variant="caption" display="block" sx={{ mt: 1, textAlign: 'center' }}>
+                                 Format: PNG, JPG (Fond transparent recommandé)
+                             </Typography>
+                         </Box>
+                     )}
+                 </CardContent>
+             </Card>
+
+             {/* Stats Section */}
+             <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Statistiques</Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  <List>
+                    <ListItem>
+                      <ListItemIcon><Assignment /></ListItemIcon>
+                      <ListItemText 
+                        primary="Total Réquisitions" 
+                        secondary={profile?.total_requisitions || 0} 
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon><Timeline /></ListItemIcon>
+                      <ListItemText 
+                        primary="En cours" 
+                        secondary={profile?.requisitions_en_cours || 0} 
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon><Work /></ListItemIcon>
+                      <ListItemText 
+                        primary="Validées / Terminées" 
+                        secondary={profile?.requisitions_validees || 0} 
+                      />
+                    </ListItem>
+                  </List>
+                </CardContent>
+              </Card>
         </Box>
       </Box>
 
-      {/* Dialogue de détails de réquisition */}
-      <Dialog 
-        open={showDetailsDialog} 
-        onClose={handleCloseDetailsDialog}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Assignment />
-            Détails de la réquisition
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          {selectedRequisition && (
-            <Box>
-              {/* Informations de base */}
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  {selectedRequisition.reference} - {selectedRequisition.objet}
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                  <Chip label={`${selectedRequisition.devise} ${selectedRequisition.montant}`} />
-                  <Chip 
-                    label={selectedRequisition.statut}
-                    sx={{ backgroundColor: getStatutColor(selectedRequisition.statut), color: 'white' }}
-                  />
-                  <Chip 
-                    label={selectedRequisition.urgence}
-                    sx={{ backgroundColor: getUrgenceColor(selectedRequisition.urgence), color: 'white' }}
-                  />
-                </Box>
-              </Box>
-
-              {/* Workflow et niveau de validation */}
-              {selectedRequisition.workflow && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle1" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Timeline />
-                    Niveau de validation actuel
-                  </Typography>
-                  <WorkflowTracker workflow={selectedRequisition.workflow} />
-                </Box>
-              )}
-
-              {/* Commentaires d'analyse */}
-              {selectedRequisition.analyses && selectedRequisition.analyses.length > 0 && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle1" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Comment />
-                    Commentaires d'analyse
-                  </Typography>
-                  {selectedRequisition.analyses.map((analysis: any, index: number) => (
-                    <Card key={index} sx={{ mb: 2 }}>
-                      <CardContent>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                          {new Date(analysis.analysis_date).toLocaleDateString()}
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          {analysis.notes}
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Chip 
-                            label={`Note: ${analysis.rating}/5`}
-                            size="small"
-                            color="primary"
-                          />
-                          <Chip 
-                            label={analysis.recommendation}
-                            size="small"
-                            variant="outlined"
-                          />
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </Box>
-              )}
-
-              {/* Pièces jointes */}
-              {selectedRequisition.pieces_jointes && selectedRequisition.pieces_jointes.length > 0 && (
-                <Box>
-                  <Typography variant="subtitle1" sx={{ mb: 2 }}>
-                    Pièces jointes
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {selectedRequisition.pieces_jointes.map((file: string, index: number) => (
-                      <Chip
-                        key={index}
-                        label={file}
-                        size="small"
-                        variant="outlined"
-                      />
-                    ))}
-                  </Box>
-                </Box>
-              )}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDetailsDialog}>Fermer</Button>
-        </DialogActions>
+      {/* Dialog Changement Mot de passe */}
+      <Dialog open={openPasswordDialog} onClose={() => setOpenPasswordDialog(false)}>
+          <DialogTitle>Modifier le mot de passe</DialogTitle>
+          <DialogContent>
+              <TextField
+                  margin="dense"
+                  label="Mot de passe actuel"
+                  type="password"
+                  fullWidth
+                  variant="outlined"
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+              />
+              <TextField
+                  margin="dense"
+                  label="Nouveau mot de passe"
+                  type="password"
+                  fullWidth
+                  variant="outlined"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+              />
+              <TextField
+                  margin="dense"
+                  label="Confirmer le nouveau mot de passe"
+                  type="password"
+                  fullWidth
+                  variant="outlined"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+              />
+          </DialogContent>
+          <DialogActions>
+              <Button onClick={() => setOpenPasswordDialog(false)}>Annuler</Button>
+              <Button onClick={handlePasswordChange} variant="contained">Enregistrer</Button>
+          </DialogActions>
       </Dialog>
     </Container>
   );

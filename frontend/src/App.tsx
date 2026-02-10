@@ -74,9 +74,7 @@ function AppRoutes() {
         <Route
           path="/profile"
           element={
-            <RoleBasedRoute allowedRoles={['admin', 'comptable', 'challenger']}>
-              <ProfilePage />
-            </RoleBasedRoute>
+            <ProfilePage />
           }
         />
         <Route

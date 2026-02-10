@@ -87,13 +87,7 @@ const Layout: React.FC = () => {
   };
 
   const getProfilePath = (role?: string) => {
-    switch (role) {
-      case 'analyste': return '/analyst-profile';
-      case 'emetteur': return '/emitter-profile';
-      case 'validateur': return '/pm-profile';
-      case 'gm': return '/gm-profile';
-      default: return '/profile';
-    }
+    return '/profile';
   };
 
   const menuItems = [

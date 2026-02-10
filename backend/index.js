@@ -103,6 +103,7 @@ const settingsRoutes = require('./routes/settings');
 const siteRoutes = require('./routes/sites');
 const compilationRoutes = require('./routes/compilations');
 const budgetRoutes = require('./routes/budgets');
+const profileRoutes = require('./routes/profile');
 const WorkflowService = require('./services/WorkflowService');
 const BudgetService = require('./services/BudgetService');
 const { dbReady } = require('./database/database');
@@ -118,6 +119,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/sites', siteRoutes);
 app.use('/api/compilations', compilationRoutes);
 app.use('/api/budgets', budgetRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Socket.IO pour le chat en temps réel
 io.on('connection', (socket) => {

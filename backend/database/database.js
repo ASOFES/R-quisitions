@@ -170,7 +170,8 @@ function initializeDatabasePostgres() {
                         "INSERT INTO app_settings (key, value, description) VALUES ('exchange_rate', '2800', 'Taux de change USD/CDF') ON CONFLICT DO NOTHING",
                         'ALTER TABLE budgets ADD COLUMN IF NOT EXISTS service_id INTEGER REFERENCES services(id)',
                         'ALTER TABLE budgets ADD CONSTRAINT unique_budget_service_mois UNIQUE (description, service_id, mois)',
-                        'ALTER TABLE budgets ADD COLUMN IF NOT EXISTS is_manual BOOLEAN DEFAULT FALSE'
+                        'ALTER TABLE budgets ADD COLUMN IF NOT EXISTS is_manual BOOLEAN DEFAULT FALSE',
+                        'ALTER TABLE users ADD COLUMN IF NOT EXISTS signature_url VARCHAR(255)'
                     ];
 
                     // Exécuter les migrations en séquence
@@ -235,7 +236,8 @@ function runSqliteMigrations() {
         'ALTER TABLE requisitions ADD COLUMN site_id INTEGER REFERENCES sites(id)',
         'ALTER TABLE requisitions ADD COLUMN mode_paiement VARCHAR(20)',
         'ALTER TABLE requisitions ADD COLUMN budget_impacted BOOLEAN DEFAULT 0',
-        'ALTER TABLE budgets ADD COLUMN is_manual BOOLEAN DEFAULT 0'
+        'ALTER TABLE budgets ADD COLUMN is_manual BOOLEAN DEFAULT 0',
+        'ALTER TABLE users ADD COLUMN signature_url VARCHAR(255)'
     ];
 
     migrations.forEach(migration => {
