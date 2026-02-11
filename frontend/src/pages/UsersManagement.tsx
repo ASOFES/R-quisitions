@@ -47,7 +47,7 @@ const UsersManagement: React.FC = () => {
     password: '',
     nom_complet: '',
     email: '',
-    role: 'emetteur' as 'admin' | 'emetteur' | 'analyste' | 'challenger' | 'validateur' | 'comptable' | 'gm' | 'pm' | 'compilateur',
+    role: 'emetteur' as User['role'],
     service_id: '',
     zone_id: '',
   });
@@ -61,8 +61,11 @@ const UsersManagement: React.FC = () => {
   const roles = [
     { value: 'admin', label: 'Administrateur', color: theme.palette.error.main },
     { value: 'gm', label: 'General Manager', color: theme.palette.warning.main },
-    { value: 'validateur', label: 'Validateur (PM)', color: theme.palette.success.main },
+    { value: 'pm', label: 'Project Manager (PM)', color: theme.palette.success.main },
+    { value: 'validateur', label: 'Validateur', color: theme.palette.success.main },
+    { value: 'challenger', label: 'Challenger', color: theme.palette.info.main },
     { value: 'analyste', label: 'Analyste', color: theme.palette.info.main },
+    { value: 'comptable', label: 'Comptable', color: theme.palette.secondary.main },
     { value: 'compilateur', label: 'Compilateur', color: theme.palette.secondary.main },
     { value: 'emetteur', label: 'Initiateur', color: theme.palette.primary.main },
   ];
@@ -139,8 +142,8 @@ const UsersManagement: React.FC = () => {
     try {
       const payload = {
         ...formData,
-        service_id: formData.service_id ? parseInt(formData.service_id) : undefined,
-        zone_id: formData.zone_id ? parseInt(formData.zone_id) : undefined
+        service_id: formData.service_id ? parseInt(formData.service_id) : null,
+        zone_id: formData.zone_id ? parseInt(formData.zone_id) : null
       };
 
       if (editingUser) {
@@ -293,10 +296,10 @@ const UsersManagement: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    {user.service_nom || (user as any).Service?.nom || '-'}
+                    {user.service_nom || (user as any).Service?.nom || 'Tous les services'}
                   </TableCell>
                   <TableCell>
-                    {user.zone_nom || '-'}
+                    {user.zone_nom || 'Toutes les zones'}
                   </TableCell>
                   <TableCell align="right">
                     <Tooltip title="Modifier">
@@ -395,7 +398,7 @@ const UsersManagement: React.FC = () => {
               variant="outlined"
             >
               <MenuItem value="">
-                <em>Aucun</em>
+                <em>Tous les services</em>
               </MenuItem>
               {services.map((service) => (
                 <MenuItem key={service.id} value={service.id}>
@@ -423,7 +426,7 @@ const UsersManagement: React.FC = () => {
               variant="outlined"
             >
               <MenuItem value="">
-                <em>Aucune</em>
+                <em>Toutes les zones</em>
               </MenuItem>
               {zones.map((zone) => (
                 <MenuItem key={zone.id} value={zone.id}>
