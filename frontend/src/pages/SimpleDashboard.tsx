@@ -18,7 +18,9 @@ import {
   useTheme,
   alpha,
   LinearProgress,
-  CircularProgress
+  CircularProgress,
+  IconButton,
+  Tooltip
 } from '@mui/material';
 import {
   Assignment,
@@ -310,16 +312,24 @@ const SimpleDashboard: React.FC = () => {
           >
             {compilingPdf ? 'Compilation...' : 'Compiler PDF'}
           </Button>
-          <Button 
-            variant={isSubscribed ? "contained" : "outlined"} 
-            color={isSubscribed ? "success" : "primary"}
-            startIcon={<Notifications />}
-            onClick={isSubscribed ? handleTestNotification : handleSubscribe}
-            disabled={checkingPush}
-            sx={{ borderRadius: 2, px: 2 }}
-          >
-            {isSubscribed ? 'Tester Notification' : 'Activer Notifications'}
-          </Button>
+          <Tooltip title={isSubscribed ? "Notifications actives (cliquez pour tester)" : "Activer les notifications système"}>
+            <IconButton 
+              color={isSubscribed ? "success" : "primary"}
+              onClick={isSubscribed ? handleTestNotification : handleSubscribe}
+              disabled={checkingPush}
+              sx={{ 
+                border: '1px solid',
+                borderColor: isSubscribed ? 'success.light' : 'primary.light',
+                borderRadius: 2,
+                backgroundColor: isSubscribed ? 'success.50' : 'transparent',
+                '&:hover': {
+                  backgroundColor: isSubscribed ? 'success.100' : 'primary.50',
+                }
+              }}
+            >
+              <Notifications />
+            </IconButton>
+          </Tooltip>
           <Button 
             variant="contained" 
             startIcon={<Add />}
