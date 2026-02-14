@@ -89,6 +89,23 @@ export default function RequisitionForm() {
   const [services, setServices] = useState<Service[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [budgetDescriptions, setBudgetDescriptions] = useState<{description: string, is_manual: boolean}[]>([]);
+  const parseNum = (val: any): number => {
+    if (val === '' || val === undefined || val === null) return 0;
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    const strVal = String(val).replace(',', '.').trim();
+    const parsed = parseFloat(strVal);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const generalTotal = React.useMemo(() => {
+    if (!items || items.length === 0) return 0;
+    return items.reduce((sum, item) => {
+      const qty = parseNum(item.quantite);
+      const price = parseNum(item.prix_unitaire);
+      const lineTotal = qty * price;
+      return sum + (isNaN(lineTotal) ? 0 : lineTotal);
+    }, 0);
+  }, [items]);
   
   // Vérifier si c'est une réponse à une réquisition existante ou une modification
   const relatedRequisitionId = searchParams.get('related_to');
@@ -314,23 +331,22 @@ export default function RequisitionForm() {
   const handleUpdateItem = (id: string, field: keyof RequisitionItem, value: any) => {
     setItems(prev => prev.map(item => {
       if (item.id === id) {
-        const updatedItem = { ...item, [field]: value };
-        
-        // Recalculate total if quantity or price changes
-        if (field === 'quantite' || field === 'prix_unitaire') {
-          // Helper pour parser les nombres correctement (gère virgule et vide)
-          const parseNum = (val: any) => {
-            if (val === '' || val === undefined || val === null) return 0;
-            const strVal = String(val).replace(',', '.');
-            const parsed = parseFloat(strVal);
-            return isNaN(parsed) ? 0 : parsed;
-          };
+        const updatedItem: RequisitionItem = { ...item };
 
-          const qty = field === 'quantite' ? parseNum(value) : parseNum(item.quantite);
-          const price = field === 'prix_unitaire' ? parseNum(value) : parseNum(item.prix_unitaire);
-          updatedItem.total = qty * price;
+        if (field === 'quantite') {
+          updatedItem.quantite = parseNum(value);
+        } else if (field === 'prix_unitaire') {
+          updatedItem.prix_unitaire = parseNum(value);
+        } else if (field === 'description') {
+          updatedItem.description = value as string;
+        } else if (field === 'site_id') {
+          updatedItem.site_id = value as any;
         }
-        
+
+        const qty = parseNum(updatedItem.quantite);
+        const price = parseNum(updatedItem.prix_unitaire);
+        updatedItem.total = qty * price;
+
         return updatedItem;
       }
       return item;
@@ -338,12 +354,8 @@ export default function RequisitionForm() {
   };
 
   useEffect(() => {
-    const total = items.reduce((sum, item) => {
-      const lineTotal = typeof item.total === 'number' ? item.total : 0;
-      return sum + lineTotal;
-    }, 0);
-    setFormData(prev => ({ ...prev, montant: total.toFixed(2) }));
-  }, [items]);
+    setFormData(prev => ({ ...prev, montant: generalTotal.toFixed(2) }));
+  }, [generalTotal]);
 
   const handleSubmit = async () => {
     // Validation simple des champs
@@ -711,7 +723,7 @@ export default function RequisitionForm() {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" fontWeight="bold">
-                        {(item.total || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $
+                        {(parseNum(item.quantite) * parseNum(item.prix_unitaire)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -758,7 +770,7 @@ export default function RequisitionForm() {
                 Ajouter une ligne
               </Button>
               <Typography variant="subtitle1" fontWeight="bold" color="primary.main">
-                Total Général: {parseFloat(formData.montant || '0').toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $
+                Total Général : {generalTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $
               </Typography>
             </Box>
           </TableContainer>
