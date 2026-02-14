@@ -77,8 +77,23 @@ const SimpleDashboard: React.FC = () => {
     if (result.success) {
       setIsSubscribed(true);
       alert('Vous recevrez désormais des notifications système même si le navigateur est fermé !');
+      
+      // Lancer une notification de test immédiatement après l'abonnement
+      try {
+        await api.post('/notifications/test-me');
+      } catch (err) {
+        console.error('Erreur lors du test de notification:', err);
+      }
     } else {
       alert(result.message || 'Impossible d\'activer les notifications. Vérifiez les paramètres de votre navigateur.');
+    }
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      await api.post('/notifications/test-me');
+    } catch (err) {
+      alert('Erreur lors de l\'envoi du test. Vérifiez si vous êtes bien abonné.');
     }
   };
 
@@ -295,15 +310,15 @@ const SimpleDashboard: React.FC = () => {
           >
             {compilingPdf ? 'Compilation...' : 'Compiler PDF'}
           </Button>
-           <Button 
+          <Button 
             variant={isSubscribed ? "contained" : "outlined"} 
             color={isSubscribed ? "success" : "primary"}
             startIcon={<Notifications />}
-            onClick={handleSubscribe}
-            disabled={isSubscribed || checkingPush}
+            onClick={isSubscribed ? handleTestNotification : handleSubscribe}
+            disabled={checkingPush}
             sx={{ borderRadius: 2, px: 2 }}
           >
-            {isSubscribed ? 'Notifications Actives' : 'Activer Notifications'}
+            {isSubscribed ? 'Tester Notification' : 'Activer Notifications'}
           </Button>
           <Button 
             variant="contained" 

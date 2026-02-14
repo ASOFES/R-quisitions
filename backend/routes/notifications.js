@@ -37,6 +37,25 @@ router.post('/subscribe', authenticateToken, async (req, res) => {
     }
 });
 
+const NotificationService = require('../services/NotificationService');
+
+// Route pour tester une notification
+router.post('/test-me', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        await NotificationService.sendNotificationToUser(
+            userId,
+            "🚀 Test de Notification",
+            "Félicitations ! Le système de notifications push fonctionne correctement sur votre PC.",
+            "/dashboard"
+        );
+        res.json({ message: 'Notification de test envoyée !' });
+    } catch (error) {
+        console.error('Erreur lors du test push:', error);
+        res.status(500).json({ error: 'Erreur lors de l\'envoi du test' });
+    }
+});
+
 // Route pour obtenir la clé publique VAPID
 router.get('/vapid-public-key', (req, res) => {
     const publicKey = process.env.VAPID_PUBLIC_KEY;
