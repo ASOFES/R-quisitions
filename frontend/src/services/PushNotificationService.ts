@@ -48,11 +48,15 @@ class PushNotificationService {
             // 3. Récupérer la clé publique du serveur
             let publicVapidKey;
             try {
-                const { data } = await api.get('/notifications/vapid-public-key');
-                publicVapidKey = data.publicKey;
-            } catch (apiErr) {
+                const response = await api.get('/notifications/vapid-public-key');
+                publicVapidKey = response.data.publicKey;
+            } catch (apiErr: any) {
                 console.error('Erreur lors de la récupération de la clé VAPID:', apiErr);
-                throw new Error('Impossible de contacter le serveur de notifications. Vérifiez votre connexion.');
+                const serverError = apiErr.response?.data?.error;
+                if (serverError) {
+                    throw new Error(`Erreur serveur: ${serverError}`);
+                }
+                throw new Error('Impossible de contacter le serveur de notifications. Vérifiez votre connexion Internet ou si le serveur est en ligne.');
             }
 
             if (!publicVapidKey) {
