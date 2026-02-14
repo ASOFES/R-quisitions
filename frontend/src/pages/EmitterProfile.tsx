@@ -3,6 +3,7 @@ import {
   Container,
   Typography,
   Box,
+  Grid,
   Card,
   CardContent,
   Avatar,
@@ -16,6 +17,7 @@ import {
   Divider,
   Chip,
   Alert,
+  AlertTitle,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -43,6 +45,7 @@ import {
   AttachFile,
   Person,
   AddCircleOutline,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
@@ -288,6 +291,11 @@ const EmitterProfile: React.FC = () => {
           </Button>
         </Box>
       </Box>
+
+      <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 4, borderRadius: 2 }}>
+        <AlertTitle sx={{ fontWeight: 'bold' }}>Notice de rôle : Émetteur (Initiateur)</AlertTitle>
+        Vous êtes le <strong>Point de départ</strong>. Vous transformez un besoin métier en réquisition formelle, suivez vos demandes et apportez les corrections si nécessaire.
+      </Alert>
 
       {showSuccess && (
         <Alert severity="success" sx={{ mb: 2 }}>

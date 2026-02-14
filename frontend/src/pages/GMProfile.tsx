@@ -3,6 +3,7 @@ import {
   Container,
   Typography,
   Box,
+  Grid,
   Card,
   CardContent,
   Avatar,
@@ -16,6 +17,7 @@ import {
   Divider,
   Chip,
   Alert,
+  AlertTitle,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -46,6 +48,7 @@ import {
   Analytics,
   Pending,
   AssignmentInd,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
@@ -362,7 +365,7 @@ const GMProfile: React.FC = () => {
           <Button onClick={() => navigate('/dashboard')} startIcon={<ArrowBack />} sx={{ mr: 2 }}>
             Tableau de bord
           </Button>
-          <Typography variant="h4" fontWeight="bold">Mon Profil GM</Typography>
+          <Typography variant="h4" fontWeight="bold">Tableau de bord General Manager</Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button 
@@ -378,6 +381,11 @@ const GMProfile: React.FC = () => {
           </Button>
         </Box>
       </Box>
+
+      <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 4, borderRadius: 2 }}>
+        <AlertTitle sx={{ fontWeight: 'bold' }}>Notice de rôle : General Manager</AlertTitle>
+        Vous êtes l'<strong>Autorité Suprême</strong>. Vous apposez la signature finale pour les validations critiques et arbitrez les priorités stratégiques de l'entreprise.
+      </Alert>
 
       {showSuccess && (
         <Alert severity="success" sx={{ mb: 2 }}>

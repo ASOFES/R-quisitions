@@ -36,6 +36,7 @@ import {
   Place as PlaceIcon,
   FolderOpen as FolderOpenIcon,
   AttachMoney as BudgetIcon,
+  Help as HelpIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 import { API_BASE_URL } from '../config';
@@ -103,6 +104,7 @@ const Layout: React.FC = () => {
     { text: 'Budgets', icon: <BudgetIcon />, path: '/budgets', roles: ['admin', 'comptable', 'pm', 'analyste'] },
     { text: 'Compilations', icon: <FolderOpenIcon />, path: '/compilations', roles: ['compilateur', 'admin', 'comptable', 'gm', 'analyste'] },
     { text: 'Trésorerie', icon: <AccountBalanceIcon />, path: '/funds', roles: ['comptable', 'admin', 'gm'] },
+    { text: 'Guide d\'utilisation', icon: <HelpIcon />, path: '/guide', roles: ['all'] },
     { text: 'Paramètres', icon: <SettingsIcon />, path: '/settings', roles: ['admin'] },
   ];
 

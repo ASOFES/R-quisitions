@@ -29,6 +29,7 @@ import FundsPage from './pages/FundsPage';
 import SettingsPage from './pages/SettingsPage';
 import CompilationsPage from './pages/CompilationsPage';
 import BudgetsPage from './pages/BudgetsPage';
+import UserGuide from './pages/UserGuide';
 import { useAuth } from './context/AuthContext';
 
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -163,6 +164,7 @@ function AppRoutes() {
             </RoleBasedRoute>
           }
         />
+        <Route path="/guide" element={<UserGuide />} />
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/dashboard" />} />
       </Route>

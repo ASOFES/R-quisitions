@@ -16,6 +16,7 @@ import {
   Divider,
   Chip,
   Alert,
+  AlertTitle,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -45,6 +46,7 @@ import {
   PieChart,
   FilterList,
   AttachFile,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
@@ -435,6 +437,11 @@ const AnalystProfile: React.FC = () => {
           Déconnexion
         </Button>
       </Box>
+
+      <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 4, borderRadius: 2 }}>
+        <AlertTitle sx={{ fontWeight: 'bold' }}>Notice de rôle : Analyste</AlertTitle>
+        Vous êtes le <strong>Superviseur du Flux</strong>. Votre rôle est d'examiner chaque demande, de vérifier la conformité budgétaire et d'orienter les dossiers vers les bonnes étapes de validation.
+      </Alert>
 
       {showSuccess && (
         <Alert severity="success" sx={{ mb: 2 }}>

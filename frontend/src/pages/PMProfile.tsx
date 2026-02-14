@@ -3,6 +3,7 @@ import {
   Container,
   Typography,
   Box,
+  Grid,
   Card,
   CardContent,
   Avatar,
@@ -16,6 +17,7 @@ import {
   Divider,
   Chip,
   Alert,
+  AlertTitle,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -44,6 +46,7 @@ import {
   CheckCircle,
   PendingActions,
   Group,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
@@ -288,7 +291,7 @@ const PMProfile: React.FC = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Button onClick={() => navigate('/dashboard')} startIcon={<ArrowBack />} sx={{ mr: 2 }}>
+          <Button onClick="{() => navigate('/dashboard')}" startIcon={<ArrowBack />} sx={{ mr: 2 }}>
             Tableau de bord
           </Button>
           <Typography variant="h4" fontWeight="bold">Mon Profil Manager</Typography>
@@ -297,6 +300,11 @@ const PMProfile: React.FC = () => {
           Déconnexion
         </Button>
       </Box>
+
+      <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 4, borderRadius: 2 }}>
+        <AlertTitle sx={{ fontWeight: 'bold' }}>Notice de rôle : PM / Validateur</AlertTitle>
+        Vous êtes le <strong>Décideur de Service</strong>. Vous engagez officiellement le budget de votre service ou projet et validez la faisabilité financière finale à votre niveau.
+      </Alert>
 
       {showSuccess && (
         <Alert severity="success" sx={{ mb: 2 }}>
