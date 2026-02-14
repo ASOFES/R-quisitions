@@ -289,18 +289,6 @@ function runSqliteMigrations() {
         dbInstance.run(tableSql, () => {});
     });
 
-    // Default workflow levels for auto-validation settings
-    const defaultLevels = [
-        'emetteur', 'approbation_service', 'analyste', 'challenger', 
-        'validateur', 'gm', 'compilation', 'validation_bordereau'
-    ];
-    defaultLevels.forEach(level => {
-        dbInstance.run("INSERT OR IGNORE INTO workflow_settings (niveau, delai_minutes) VALUES (?, 0)", [level]);
-    });
-
-    // Default settings
-    dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value, description) VALUES ('exchange_rate', '2800', 'Taux de change USD/CDF')", () => {});
-    
     // Default zones
     dbInstance.get('SELECT count(*) as count FROM zones', [], (err, row) => {
         if (!err && row && row.count === 0) {
@@ -324,8 +312,25 @@ const dbUtils = {
         let paramCount = 1;
         // Remplacer ? par $1, $2, etc.
         let pgQuery = query.replace(/\?/g, () => `$${paramCount++}`);
+
+        // Adaptation syntaxe SQLite -> PostgreSQL pour les Upserts
+        if (pgQuery.toUpperCase().includes('INSERT OR REPLACE')) {
+            // INSERT OR REPLACE INTO table (pk, cols) VALUES (...)
+            // -> INSERT INTO table (pk, cols) VALUES (...) ON CONFLICT (pk) DO UPDATE SET cols = EXCLUDED.cols
+            pgQuery = pgQuery.replace(/INSERT OR REPLACE INTO (\w+) \((.*?)\) VALUES \((.*?)\)/i, (match, table, cols, vals) => {
+                const colArray = cols.split(',').map(c => c.trim());
+                const firstCol = colArray[0];
+                const updateSet = colArray.slice(1).map(c => `${c} = EXCLUDED.${c}`).join(', ');
+                return `INSERT INTO ${table} (${cols}) VALUES (${vals}) ON CONFLICT (${firstCol}) DO UPDATE SET ${updateSet}`;
+            });
+        }
         
-        // Auto-inject RETURNING id pour les INSERT si absent
+        if (pgQuery.toUpperCase().includes('INSERT OR IGNORE')) {
+            pgQuery = pgQuery.replace(/INSERT OR IGNORE INTO/i, 'INSERT INTO');
+            pgQuery += ' ON CONFLICT DO NOTHING';
+        }
+        
+        // Auto-inject RETURNING id pour les INSERT si absent (et si pas déjà géré par ON CONFLICT)
         if (pgQuery.trim().toUpperCase().startsWith('INSERT') && !pgQuery.toUpperCase().includes('RETURNING')) {
              pgQuery += ' RETURNING id';
         }
@@ -406,6 +411,35 @@ const dbUtils = {
     });
   }
 };
+
+/**
+ * Initialise les paramètres par défaut (taux de change, niveaux de workflow)
+ */
+async function initializeDefaultSettings() {
+    try {
+        // Taux de change par défaut
+        await dbUtils.run("INSERT OR IGNORE INTO app_settings (key, value, description) VALUES ('exchange_rate', '2800', 'Taux de change USD/CDF')");
+        
+        // Niveaux de workflow par défaut pour l'auto-validation
+        const defaultLevels = [
+            'emetteur', 'approbation_service', 'analyste', 'challenger', 
+            'validateur', 'gm', 'compilation', 'validation_bordereau'
+        ];
+        
+        for (const level of defaultLevels) {
+            await dbUtils.run("INSERT OR IGNORE INTO workflow_settings (niveau, delai_minutes) VALUES (?, 0)", [level]);
+        }
+        
+        console.log('✅ Paramètres par défaut initialisés.');
+    } catch (err) {
+        console.error('⚠️ Erreur initialisation paramètres par défaut:', err.message);
+    }
+}
+
+// Lancement de l'initialisation des paramètres une fois que dbReady est résolu
+dbReady.then(() => {
+    initializeDefaultSettings();
+});
 
 module.exports = { 
   get db() { return dbInstance; }, 
