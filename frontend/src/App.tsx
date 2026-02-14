@@ -20,7 +20,7 @@ import RequisitionForm from './pages/RequisitionForm';
 import ProfilePage from './pages/ProfilePage';
 import EmitterProfile from './pages/EmitterProfile';
 import AnalystProfile from './pages/AnalystProfile';
-import PMProfileClean from './pages/PMProfileClean';
+import PMProfile from './pages/PMProfile';
 import GMProfile from './pages/GMProfile';
 import RequisitionAnalysis from './pages/RequisitionAnalysis';
 import FinancialPage from './pages/FinancialPage';
@@ -97,7 +97,7 @@ function AppRoutes() {
           path="/pm-profile"
           element={
             <RoleBasedRoute allowedRoles={['validateur']}>
-              <PMProfileClean />
+              <PMProfile />
             </RoleBasedRoute>
           }
         />

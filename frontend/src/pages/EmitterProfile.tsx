@@ -8,6 +8,7 @@ import {
   Avatar,
   Button,
   TextField,
+  Paper,
   List,
   ListItem,
   ListItemText,
@@ -16,15 +17,13 @@ import {
   Chip,
   Alert,
   CircularProgress,
-  IconButton,
-  Grid,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
+  IconButton,
 } from '@mui/material';
 import {
-  Person,
   Email,
   Phone,
   Business,
@@ -33,32 +32,33 @@ import {
   Cancel,
   ArrowBack,
   Work,
-  Assignment,
   Description,
-  TrendingUp,
   Logout,
   Settings,
-  AttachFile,
   Visibility,
+  TrendingUp,
+  AccountBalance,
+  PieChart,
+  FilterList,
+  AttachFile,
+  Person,
+  AddCircleOutline,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import RequisitionService, { Requisition } from '../services/RequisitionService';
 import { API_BASE_URL } from '../config';
+import { useAuth } from '../context/AuthContext';
+import { Requisition } from '../services/RequisitionService';
 
 interface EmitterProfileData {
   id: number;
   username: string;
   email: string;
-  nom: string;
-  prenom: string;
+  nom_complet: string;
   telephone?: string;
   role: string;
   service_nom: string;
   service_id: number;
-  niveau: string;
   created_at: string;
-  last_login?: string;
   total_requisitions: number;
   requisitions_en_cours: number;
   requisitions_validees: number;
@@ -72,22 +72,18 @@ const EmitterProfile: React.FC = () => {
   const navigate = useNavigate();
   
   const [profile, setProfile] = useState<EmitterProfileData | null>(null);
-  const [recentRequisitions, setRecentRequisitions] = useState<Requisition[]>([]);
+  const [allUserRequisitions, setAllUserRequisitions] = useState<Requisition[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState<Partial<EmitterProfileData>>({});
   const [showSuccess, setShowSuccess] = useState(false);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterService, setFilterService] = useState('all');
-  const [filterUrgence, setFilterUrgence] = useState('all');
-
-  const [allUserRequisitions, setAllUserRequisitions] = useState<Requisition[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterUrgence, setFilterUrgence] = useState<string>('all');
 
   const loadProfileData = useCallback(async () => {
     try {
       setLoading(true);
       
-      // Récupérer le token depuis localStorage
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('Token non trouvé');
@@ -95,110 +91,68 @@ const EmitterProfile: React.FC = () => {
         return;
       }
 
-      // Récupérer les réquisitions de l'utilisateur depuis l'API du backend
-      const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+      // Initialize basic profile from user context
+      let userProfile: EmitterProfileData = {
+        id: user?.id || 0,
+        username: user?.username || 'emetteur',
+        email: user?.email || '',
+        nom_complet: user?.nom_complet || 'Utilisateur Initiateur',
+        telephone: '',
+        role: user?.role || 'emetteur',
+        service_nom: user?.service_nom || 'Service',
+        service_id: user?.service_id || 0,
+        created_at: new Date().toISOString(),
+        total_requisitions: 0,
+        requisitions_en_cours: 0,
+        requisitions_validees: 0,
+        requisitions_refusees: 0,
+        montant_total: 0,
+        moyenne_montant: 0,
+      };
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Filter own requisitions
+          const myRequisitions = data.filter((req: any) => req.emetteur_id === user?.id);
+          
+          setAllUserRequisitions(myRequisitions);
+
+          const stats = {
+            total_requisitions: myRequisitions.length,
+            requisitions_en_cours: myRequisitions.filter((r: any) => r.statut === 'en_cours' || r.statut === 'soumise').length,
+            requisitions_validees: myRequisitions.filter((r: any) => r.statut === 'validee' || r.statut === 'payee' || r.statut === 'termine').length,
+            requisitions_refusees: myRequisitions.filter((r: any) => r.statut === 'refusee').length,
+            montant_total: myRequisitions.reduce((sum: number, r: any) => {
+              const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
+              return sum + (isNaN(val) ? 0 : val);
+            }, 0),
+            moyenne_montant: myRequisitions.length > 0 ? myRequisitions.reduce((sum: number, r: any) => {
+              const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
+              return sum + (isNaN(val) ? 0 : val);
+            }, 0) / myRequisitions.length : 0,
+          };
+
+          userProfile = {
+            ...userProfile,
+            ...stats,
+            service_nom: myRequisitions.length > 0 ? myRequisitions[0].service_nom : userProfile.service_nom,
+            service_id: myRequisitions.length > 0 ? myRequisitions[0].service_id : userProfile.service_id,
+          };
         }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Réquisitions récupérées depuis le backend:', data);
-        
-        // Filtrer uniquement les réquisitions de l'utilisateur connecté
-        const userRequisitions = data.filter((req: any) => req.emetteur_id === user?.id);
-        
-        // Transformer les données pour le format attendu par le composant
-        const formattedRequisitions = userRequisitions.map((req: any) => ({
-          id: req.id,
-          reference: req.numero,
-          objet: req.objet,
-          montant: req.montant_usd || req.montant_cdf || 0,
-          devise: req.montant_usd ? 'USD' : 'CDF',
-          urgence: 'normale',
-          statut: req.statut,
-          created_at: req.created_at,
-          niveau: req.niveau,
-          actions: req.actions || [],
-          emetteur_nom: req.emetteur_nom,
-          service_nom: req.service_nom,
-          nb_pieces: req.nb_pieces || 0
-        }));
-
-        setAllUserRequisitions(formattedRequisitions);
-        
-        // Calculer les statistiques
-        const userStats = {
-          total_requisitions: userRequisitions.length,
-          requisitions_en_cours: userRequisitions.filter((r: any) => r.statut === 'en_cours').length,
-          requisitions_validees: userRequisitions.filter((r: any) => r.statut === 'validee').length,
-          requisitions_refusees: userRequisitions.filter((r: any) => r.statut === 'refusee').length,
-          montant_total: userRequisitions.reduce((sum: number, r: any) => sum + (r.montant_usd || r.montant_cdf || 0), 0),
-          moyenne_montant: userRequisitions.length > 0 ? userRequisitions.reduce((sum: number, r: any) => sum + (r.montant_usd || r.montant_cdf || 0), 0) / userRequisitions.length : 0,
-        };
-
-        // Créer le profil utilisateur
-        const userProfile: EmitterProfileData = {
-          id: user?.id || 1,
-          username: user?.username || 'emetteur',
-          email: user?.email || 'emetteur@company.com',
-          nom: user?.nom_complet?.split(' ')[1] || 'Dupont',
-          prenom: user?.nom_complet?.split(' ')[0] || 'Jean',
-          telephone: '+243 123 456 789',
-          role: user?.role || 'emetteur',
-          service_nom: userRequisitions.length > 0 ? userRequisitions[0].service_nom : 'Informatique',
-          service_id: userRequisitions.length > 0 ? userRequisitions[0].service_id : 1,
-          niveau: 'N1',
-          created_at: new Date().toISOString(),
-          last_login: new Date().toISOString(),
-          ...userStats,
-        };
-
-        setProfile(userProfile);
-        setRecentRequisitions(formattedRequisitions.slice(0, 5));
-      } else {
-        // Fallback logic
-        console.error('Erreur lors de la récupération des réquisitions:', response.status);
-        const requisitionService = RequisitionService.getInstance();
-        const allRequisitions = requisitionService.getAllRequisitions();
-        const userRequisitions = allRequisitions.filter(req => req.emetteur_id === user?.id);
-        
-        setAllUserRequisitions(userRequisitions);
-        
-        const userStats = {
-          total_requisitions: userRequisitions.length,
-          requisitions_en_cours: userRequisitions.filter(r => r.statut === 'en_cours').length,
-          requisitions_validees: userRequisitions.filter(r => r.statut === 'validee').length,
-          requisitions_refusees: userRequisitions.filter(r => r.statut === 'refusee').length,
-          montant_total: userRequisitions.reduce((sum, r) => sum + r.montant, 0),
-          moyenne_montant: userRequisitions.length > 0 ? userRequisitions.reduce((sum, r) => sum + r.montant, 0) / userRequisitions.length : 0,
-        };
-
-        const userProfile: EmitterProfileData = {
-          id: user?.id || 1,
-          username: user?.username || 'emetteur',
-          email: user?.email || 'emetteur@company.com',
-          nom: 'Dupont',
-          prenom: 'Jean',
-          telephone: '+243 123 456 789',
-          role: user?.role || 'emetteur',
-          service_nom: userRequisitions.length > 0 ? userRequisitions[0].service_nom : 'Informatique',
-          service_id: userRequisitions.length > 0 ? userRequisitions[0].service_id : 1,
-          niveau: 'N1',
-          created_at: new Date().toISOString(),
-          last_login: new Date().toISOString(),
-          ...userStats,
-        };
-
-        setProfile(userProfile);
-        setRecentRequisitions(userRequisitions.slice(0, 5));
+      } catch (err) {
+        console.error('Exception fetch requisitions:', err);
       }
-      
+
+      setProfile(userProfile);
       setLoading(false);
+
     } catch (error) {
-      console.error('Erreur lors du chargement des données:', error);
+      console.error('Erreur globale chargement données:', error);
       setLoading(false);
     }
   }, [user]);
@@ -210,8 +164,7 @@ const EmitterProfile: React.FC = () => {
   const handleEdit = () => {
     setEditMode(true);
     setFormData({
-      nom: profile?.nom,
-      prenom: profile?.prenom,
+      nom_complet: profile?.nom_complet,
       telephone: profile?.telephone,
     });
   };
@@ -280,15 +233,10 @@ const EmitterProfile: React.FC = () => {
     }
   };
 
-  // Extract unique values for filters
-  const services = Array.from(new Set(allUserRequisitions.map(r => (r as any).service_nom).filter(Boolean)));
-  const urgences = Array.from(new Set(allUserRequisitions.map(r => r.urgence).filter(Boolean)));
-
   const filteredRequisitions = allUserRequisitions.filter(req => {
-    const matchesStatus = filterStatus === 'all' || req.statut === filterStatus;
-    const matchesService = filterService === 'all' || (req as any).service_nom === filterService;
-    const matchesUrgence = filterUrgence === 'all' || req.urgence === filterUrgence;
-    return matchesStatus && matchesService && matchesUrgence;
+    const statusMatch = filterStatus === 'all' || req.statut === filterStatus;
+    const urgenceMatch = filterUrgence === 'all' || req.urgence === filterUrgence;
+    return statusMatch && urgenceMatch;
   });
 
   if (loading) {
@@ -311,17 +259,27 @@ const EmitterProfile: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* En-tête */}
+      {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Button onClick={() => navigate('/dashboard')} startIcon={<ArrowBack />} sx={{ mr: 2 }}>
-            Retour
+            Tableau de bord
           </Button>
-          <Typography variant="h4">Mon Profil Initiateur</Typography>
+          <Typography variant="h4" fontWeight="bold">Mon Profil Initiateur</Typography>
         </Box>
-        <Button variant="outlined" color="error" onClick={handleLogout} startIcon={<Logout />}>
-          Déconnexion
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<AddCircleOutline />}
+            onClick={() => navigate('/requisitions/new')}
+          >
+            Nouvelle Réquisition
+          </Button>
+          <Button variant="outlined" color="error" onClick={handleLogout} startIcon={<Logout />}>
+            Déconnexion
+          </Button>
+        </Box>
       </Box>
 
       {showSuccess && (
@@ -331,21 +289,21 @@ const EmitterProfile: React.FC = () => {
       )}
 
       <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
-        {/* Informations personnelles */}
+        {/* Profile Card */}
         <Box sx={{ flex: { xs: 1, md: 0.4 } }}>
-          <Card>
+          <Card sx={{ boxShadow: 3 }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Avatar sx={{ width: 64, height: 64, mr: 2, bgcolor: 'primary.main' }}>
                   <Person sx={{ fontSize: 32 }} />
                 </Avatar>
                 <Box>
-                  <Typography variant="h6">{profile.prenom} {profile.nom}</Typography>
+                  <Typography variant="h6">{profile.nom_complet}</Typography>
                   <Typography variant="body2" color="text.secondary">
                     @{profile.username}
                   </Typography>
                   <Chip 
-                    label={profile.role} 
+                    label="Initiateur" 
                     size="small" 
                     color="primary" 
                     sx={{ mt: 1 }}
@@ -357,20 +315,20 @@ const EmitterProfile: React.FC = () => {
 
               <List dense>
                 <ListItem>
-                  <ListItemIcon><Email /></ListItemIcon>
+                  <ListItemIcon><Email color="action" /></ListItemIcon>
                   <ListItemText primary={profile.email} />
                 </ListItem>
                 <ListItem>
-                  <ListItemIcon><Phone /></ListItemIcon>
+                  <ListItemIcon><Phone color="action" /></ListItemIcon>
                   <ListItemText primary={profile.telephone || 'Non renseigné'} />
                 </ListItem>
                 <ListItem>
-                  <ListItemIcon><Business /></ListItemIcon>
+                  <ListItemIcon><Business color="action" /></ListItemIcon>
                   <ListItemText primary={profile.service_nom} />
                 </ListItem>
                 <ListItem>
-                  <ListItemIcon><Work /></ListItemIcon>
-                  <ListItemText primary={`Niveau: ${profile.niveau}`} />
+                  <ListItemIcon><Work color="action" /></ListItemIcon>
+                  <ListItemText primary="Niveau: Émetteur (L1)" />
                 </ListItem>
               </List>
 
@@ -409,81 +367,83 @@ const EmitterProfile: React.FC = () => {
           </Card>
         </Box>
 
-        {/* Statistiques et formulaire d'édition */}
+        {/* Stats and Content */}
         <Box sx={{ flex: { xs: 1, md: 0.6 } }}>
-          {/* Statistiques */}
-          <Card sx={{ mb: 3 }}>
+          {/* Main Stats */}
+          <Card sx={{ mb: 3, boxShadow: 3 }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                <TrendingUp sx={{ mr: 1, verticalAlign: 'middle' }} />
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                <TrendingUp sx={{ mr: 1 }} color="primary" />
                 Mes Statistiques
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                  <Typography variant="h4" color="primary">
+                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                  <Typography variant="h4" color="primary.main">
                     {profile.total_requisitions}
                   </Typography>
                   <Typography variant="body2">Total</Typography>
                 </Box>
-                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'warning.50', borderRadius: 1 }}>
+                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'warning.50', borderRadius: 2 }}>
                   <Typography variant="h4" color="warning.main">
                     {profile.requisitions_en_cours}
                   </Typography>
                   <Typography variant="body2">En cours</Typography>
                 </Box>
-                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'success.50', borderRadius: 1 }}>
+                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'success.50', borderRadius: 2 }}>
                   <Typography variant="h4" color="success.main">
                     {profile.requisitions_validees}
                   </Typography>
                   <Typography variant="body2">Validées</Typography>
                 </Box>
-                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'error.50', borderRadius: 1 }}>
+                <Box sx={{ flex: { xs: 1, sm: 0.25 }, textAlign: 'center', p: 2, bgcolor: 'error.50', borderRadius: 2 }}>
                   <Typography variant="h4" color="error.main">
                     {profile.requisitions_refusees}
                   </Typography>
                   <Typography variant="body2">Refusées</Typography>
                 </Box>
               </Box>
-              <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
-                <Box sx={{ flex: 1, textAlign: 'center', p: 2, bgcolor: 'blue.50', borderRadius: 1 }}>
-                  <Typography variant="h5" color="primary">
+            </CardContent>
+          </Card>
+
+          {/* Global View */}
+          <Card sx={{ mb: 3, boxShadow: 3 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                <PieChart sx={{ mr: 1 }} color="primary" />
+                Aperçu Financier
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ flex: 1, minWidth: 200, textAlign: 'center', p: 2, bgcolor: 'blue.50', borderRadius: 2 }}>
+                  <Typography variant="h5" color="primary.main">
                     ${profile.montant_total.toLocaleString()}
                   </Typography>
-                  <Typography variant="body2">Montant total</Typography>
+                  <Typography variant="body2">Montant total engagé</Typography>
                 </Box>
-                <Box sx={{ flex: 1, textAlign: 'center', p: 2, bgcolor: 'purple.50', borderRadius: 1 }}>
+                <Box sx={{ flex: 1, minWidth: 200, textAlign: 'center', p: 2, bgcolor: 'purple.50', borderRadius: 2 }}>
                   <Typography variant="h5" color="purple.main">
                     ${Math.round(profile.moyenne_montant).toLocaleString()}
                   </Typography>
-                  <Typography variant="body2">Moyenne</Typography>
+                  <Typography variant="body2">Montant moyen</Typography>
                 </Box>
               </Box>
             </CardContent>
           </Card>
 
-          {/* Formulaire d'édition */}
+          {/* Edit Form */}
           {editMode && (
-            <Card sx={{ mb: 3 }}>
+            <Card sx={{ mb: 3, boxShadow: 3 }}>
               <CardContent>
                 <Typography variant="h6" sx={{ mb: 2 }}>
                   <Settings sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Modifier mes informations
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-                    <TextField
-                      fullWidth
-                      label="Nom"
-                      value={formData.nom || ''}
-                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                    />
-                    <TextField
-                      fullWidth
-                      label="Prénom"
-                      value={formData.prenom || ''}
-                      onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
-                    />
-                  </Box>
+                  <TextField
+                    fullWidth
+                    label="Nom complet"
+                    value={formData.nom_complet || ''}
+                    onChange={(e) => setFormData({ ...formData, nom_complet: e.target.value })}
+                  />
                   <TextField
                     fullWidth
                     label="Téléphone"
@@ -495,177 +455,112 @@ const EmitterProfile: React.FC = () => {
             </Card>
           )}
 
-          {/* Réquisitions récentes */}
-          <Card>
+          {/* Recent Requisitions */}
+          <Card sx={{ boxShadow: 3 }}>
             <CardContent>
-              <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6">
-                    <Assignment sx={{ mr: 1, verticalAlign: 'middle' }} />
-                    Mes Réquisitions
-                  </Typography>
-                </Box>
-                
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <FormControl size="small" fullWidth>
-                      <InputLabel>Statut</InputLabel>
-                      <Select
-                        value={filterStatus}
-                        label="Statut"
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                      >
-                        <MenuItem value="all">Toutes</MenuItem>
-                        <MenuItem value="brouillon">Brouillon</MenuItem>
-                        <MenuItem value="soumise">Soumise</MenuItem>
-                        <MenuItem value="en_cours">En cours</MenuItem>
-                        <MenuItem value="validee">Validée</MenuItem>
-                        <MenuItem value="refusee">Refusée</MenuItem>
-                        <MenuItem value="payee">Payée</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <FormControl size="small" fullWidth>
-                      <InputLabel>Service</InputLabel>
-                      <Select
-                        value={filterService}
-                        label="Service"
-                        onChange={(e) => setFilterService(e.target.value)}
-                      >
-                        <MenuItem value="all">Tous</MenuItem>
-                        {services.map((service: any) => (
-                          <MenuItem key={service} value={service}>{service}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <FormControl size="small" fullWidth>
-                      <InputLabel>Urgence</InputLabel>
-                      <Select
-                        value={filterUrgence}
-                        label="Urgence"
-                        onChange={(e) => setFilterUrgence(e.target.value)}
-                      >
-                        <MenuItem value="all">Toutes</MenuItem>
-                        {urgences.map((urgence: any) => (
-                          <MenuItem key={urgence} value={urgence}>{getUrgenceLabel(urgence)}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                </Grid>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  <Description sx={{ mr: 1, verticalAlign: 'middle' }} color="primary" />
+                  Mes Réquisitions Récentes
+                </Typography>
+                <Button 
+                  variant="outlined" 
+                  size="small"
+                  onClick={() => navigate('/requisitions')}
+                >
+                  Voir tout
+                </Button>
               </Box>
               
+              {/* Filters */}
+              <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Statut</InputLabel>
+                    <Select
+                      value={filterStatus}
+                      label="Statut"
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                    >
+                      <MenuItem value="all">Tous</MenuItem>
+                      <MenuItem value="brouillon">Brouillon</MenuItem>
+                      <MenuItem value="soumise">Soumise</MenuItem>
+                      <MenuItem value="en_cours">En cours</MenuItem>
+                      <MenuItem value="validee">Validée</MenuItem>
+                      <MenuItem value="refusee">Refusée</MenuItem>
+                      <MenuItem value="payee">Payée</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Urgence</InputLabel>
+                    <Select
+                      value={filterUrgence}
+                      label="Urgence"
+                      onChange={(e) => setFilterUrgence(e.target.value)}
+                    >
+                      <MenuItem value="all">Toutes</MenuItem>
+                      <MenuItem value="basse">Basse</MenuItem>
+                      <MenuItem value="normale">Normale</MenuItem>
+                      <MenuItem value="haute">Haute</MenuItem>
+                      <MenuItem value="critique">Critique</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Paper>
+              
               {filteredRequisitions.length > 0 ? (
-                <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-                  {filteredRequisitions.map((requisition) => (
-                    <React.Fragment key={requisition.id}>
-                      <ListItem divider>
-                        <ListItemIcon>
-                          <Description color="primary" />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="subtitle2">
-                                {requisition.reference}
-                              </Typography>
-                              <Typography variant="body2">
-                                {requisition.objet}
-                              </Typography>
-                            </Box>
-                          }
-                          secondary={
-                            <Box sx={{ mt: 1 }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                <Chip
-                                  label={getStatutLabel(requisition.statut)}
-                                  size="small"
-                                  sx={{
-                                    backgroundColor: getStatutColor(requisition.statut),
-                                    color: 'white',
-                                  }}
-                                />
-                                <Chip
-                                  label={getUrgenceLabel(requisition.urgence)}
-                                  size="small"
-                                  sx={{
-                                    backgroundColor: getUrgenceColor(requisition.urgence),
-                                    color: 'white',
-                                  }}
-                                />
-                                {(requisition as any).nb_pieces !== undefined && (requisition as any).nb_pieces > 0 && (
-                                  <Chip
-                                    label={`${(requisition as any).nb_pieces} pièce(s)`}
-                                    size="small"
-                                    icon={<AttachFile sx={{ fontSize: 16 }} />}
-                                    variant="outlined"
-                                  />
-                                )}
-                                <Typography variant="caption" color="text.secondary">
-                                  {requisition.devise} {requisition.montant.toLocaleString()}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {new Date(requisition.created_at).toLocaleDateString()}
-                                </Typography>
-                              </Box>
-                              
-                              {/* Afficher l'historique du workflow */}
-                              {requisition.actions && requisition.actions.length > 0 && (
-                                <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 'bold', mb: 0.5, display: 'block' }}>
-                                    Historique du workflow:
-                                  </Typography>
-                                  {requisition.actions.map((action: any, index: number) => (
-                                    <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                      <Typography variant="caption" color="primary">
-                                        {new Date(action.created_at).toLocaleDateString()} {new Date(action.created_at).toLocaleTimeString()}
-                                      </Typography>
-                                      <Chip
-                                        label={action.action.toUpperCase()}
-                                        size="small"
-                                        color={action.action === 'valider' ? 'success' : action.action === 'refuser' ? 'error' : 'default'}
-                                        sx={{ height: 20, fontSize: '0.6rem' }}
-                                      />
-                                      <Typography variant="caption" color="text.secondary">
-                                        par {action.utilisateur_nom}
-                                      </Typography>
-                                      {action.commentaire && (
-                                        <Typography variant="caption" sx={{ fontStyle: 'italic' }}>
-                                          - "{action.commentaire}"
-                                        </Typography>
-                                      )}
-                                    </Box>
-                                  ))}
-                                </Box>
-                              )}
-                            </Box>
-                          }
-                        />
-                        <IconButton 
-                          onClick={() => navigate(`/requisitions/${requisition.id}`)}
-                          color="primary"
-                        >
-                          <Visibility />
-                        </IconButton>
-                      </ListItem>
-                    </React.Fragment>
+                <List>
+                  {filteredRequisitions.slice(0, 10).map((requisition) => (
+                    <ListItem key={requisition.id} divider>
+                      <ListItemIcon>
+                        <Description color="primary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {requisition.reference}
+                            </Typography>
+                            <Typography variant="body2" noWrap sx={{ maxWidth: 250 }}>
+                              {requisition.objet}
+                            </Typography>
+                          </Box>
+                        }
+                        secondary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                            <Chip
+                              label={getStatutLabel(requisition.statut)}
+                              size="small"
+                              sx={{ backgroundColor: getStatutColor(requisition.statut), color: 'white', height: 20, fontSize: '0.7rem' }}
+                            />
+                            <Chip
+                              label={getUrgenceLabel(requisition.urgence)}
+                              size="small"
+                              sx={{ backgroundColor: getUrgenceColor(requisition.urgence), color: 'white', height: 20, fontSize: '0.7rem' }}
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                              {requisition.devise} {(requisition.montant_usd || requisition.montant_cdf || 0).toLocaleString()}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(requisition.created_at).toLocaleDateString()}
+                            </Typography>
+                          </Box>
+                        }
+                      />
+                      <IconButton 
+                        onClick={() => navigate(`/requisitions/${requisition.id}`)}
+                        color="primary"
+                      >
+                        <Visibility />
+                      </IconButton>
+                    </ListItem>
                   ))}
                 </List>
               ) : (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
                   <Typography variant="body2" color="text.secondary">
-                    Vous n'avez pas encore de réquisition
+                    Aucune réquisition trouvée.
                   </Typography>
-                  <Button 
-                    variant="contained" 
-                    sx={{ mt: 2 }}
-                    onClick={() => navigate('/requisitions/new')}
-                  >
-                    Créer ma première réquisition
-                  </Button>
                 </Box>
               )}
             </CardContent>

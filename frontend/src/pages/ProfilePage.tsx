@@ -309,12 +309,13 @@ const ProfilePage: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* En-tête */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-        <Button onClick={() => navigate('/dashboard')} startIcon={<ArrowBack />} sx={{ mr: 2 }}>
-          Retour
-        </Button>
-        <Typography variant="h4">Mon Profil</Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Button onClick={() => navigate('/dashboard')} startIcon={<ArrowBack />} sx={{ mr: 2 }}>
+            Tableau de bord
+          </Button>
+          <Typography variant="h4" fontWeight="bold">Paramètres du Compte</Typography>
+        </Box>
       </Box>
 
       {/* Alert */}

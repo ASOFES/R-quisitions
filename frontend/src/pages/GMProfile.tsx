@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -7,66 +7,88 @@ import {
   CardContent,
   Avatar,
   Button,
-  Chip,
+  TextField,
   Paper,
   List,
   ListItem,
   ListItemText,
   ListItemIcon,
-  IconButton,
-  LinearProgress,
-  TextField,
-  Grid,
-  MenuItem,
-  Select,
-  InputLabel,
+  Divider,
+  Chip,
+  Alert,
+  CircularProgress,
   FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  IconButton,
 } from '@mui/material';
 import {
-  Person,
-  Business,
   Email,
-  Analytics,
-  Pending,
-  CheckCircle,
-  Speed,
-  Visibility,
-  AttachFile,
+  Phone,
+  Business,
+  Edit,
   Save,
   Cancel,
+  ArrowBack,
+  Work,
+  Description,
+  Logout,
+  Settings,
+  Visibility,
+  AccountBalance,
+  PieChart,
+  FilterList,
+  AttachFile,
   PictureAsPdf,
+  Speed,
+  CheckCircle,
+  Analytics,
+  Pending,
+  AssignmentInd,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { useAuth } from '../context/AuthContext';
-import RequisitionService, { Requisition } from '../services/RequisitionService';
 import { API_BASE_URL } from '../config';
+import { useAuth } from '../context/AuthContext';
+import { Requisition } from '../services/RequisitionService';
+
+interface GMProfileData {
+  id: number;
+  username: string;
+  email: string;
+  nom_complet: string;
+  telephone?: string;
+  role: string;
+  service_nom: string;
+  service_id: number;
+  created_at: string;
+  total_requisitions_a_valider: number;
+  requisitions_en_attente_paiement: number;
+  requisitions_payees: number;
+  taux_paiement: number;
+  montant_total_paye: number;
+}
 
 const GMProfile: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [requisitions, setRequisitions] = useState<Requisition[]>([]);
+  
+  const [profile, setProfile] = useState<GMProfileData | null>(null);
+  const [allRequisitions, setAllRequisitions] = useState<Requisition[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
-  const [filterStatus, setFilterStatus] = useState('pending');
-  const [filterService, setFilterService] = useState('all');
-  const [filterUrgence, setFilterUrgence] = useState('all');
-  const [formData, setFormData] = useState({
-    nom_complet: user?.nom_complet || '',
-    email: user?.email || '',
-    service_nom: user?.service_nom || '',
-  });
+  const [formData, setFormData] = useState<Partial<GMProfileData>>({});
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<string>('pending');
+  const [filterService, setFilterService] = useState<string>('all');
+  const [filterUrgence, setFilterUrgence] = useState<string>('all');
 
-  useEffect(() => {
-    loadProfileData();
-  }, []);
-
-  const loadProfileData = async () => {
+  const loadProfileData = useCallback(async () => {
     try {
       setLoading(true);
       
-      // Récupérer le token depuis localStorage
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('Token non trouvé');
@@ -74,69 +96,104 @@ const GMProfile: React.FC = () => {
         return;
       }
 
-      // Récupérer les réquisitions depuis l'API du backend
-      const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      // Initialize basic profile from user context
+      let userProfile: GMProfileData = {
+        id: user?.id || 0,
+        username: user?.username || 'gm.user',
+        email: user?.email || '',
+        nom_complet: user?.nom_complet || 'Utilisateur GM',
+        telephone: '',
+        role: user?.role || 'gm',
+        service_nom: user?.service_nom || 'Direction Générale',
+        service_id: user?.service_id || 0,
+        created_at: new Date().toISOString(),
+        total_requisitions_a_valider: 0,
+        requisitions_en_attente_paiement: 0,
+        requisitions_payees: 0,
+        taux_paiement: 0,
+        montant_total_paye: 0,
+      };
 
-      if (response.ok) {
-        const allRequisitions = await response.json();
-        console.log('Réquisitions récupérées depuis le backend pour GM:', allRequisitions);
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/requisitions`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        });
         
-        // Pour le GM, on garde tout ce qui est pertinent (y compris l'historique)
-        // Mais on marque ceux qui sont en attente pour le tri par défaut
-        const relevantRequisitions = allRequisitions.filter((req: any) => 
-          req.niveau === 'gm' || 
-          req.niveau === 'paiement' || 
-          req.statut === 'validee' ||
-          req.statut === 'payee' ||
-          req.statut === 'refusee' ||
-          req.statut === 'termine'
-        );
-        
-        console.log('Réquisitions pertinentes pour GM:', relevantRequisitions);
-        setRequisitions(relevantRequisitions);
-      } else {
-        console.error('Erreur lors de la récupération des réquisitions:', response.status);
-        // En cas d'erreur, essayer avec le service local
-        const requisitionService = RequisitionService.getInstance();
-        const allRequisitions = requisitionService.getAllRequisitions();
-        const relevantRequisitions = allRequisitions.filter(req => 
-          req.niveau === 'gm' ||
-          req.niveau === 'paiement' || 
-          req.statut === 'validee' ||
-          req.statut === 'payee' ||
-          req.statut === 'refusee' ||
-          req.statut === 'termine'
-        );
-        setRequisitions(relevantRequisitions);
+        if (response.ok) {
+          const data = await response.json();
+          setAllRequisitions(data);
+
+          // Calculate stats for GM
+          const gmRelevant = data.filter((req: any) => 
+            req.niveau === 'gm' || 
+            req.niveau === 'paiement' || 
+            req.statut === 'validee' ||
+            req.statut === 'payee' ||
+            req.statut === 'termine'
+          );
+
+          const stats = {
+            total_requisitions_a_valider: gmRelevant.filter((r: any) => r.niveau === 'gm').length,
+            requisitions_en_attente_paiement: gmRelevant.filter((r: any) => r.niveau === 'paiement' && r.statut !== 'payee').length,
+            requisitions_payees: data.filter((r: any) => r.statut === 'payee' || r.statut === 'termine').length,
+            taux_paiement: gmRelevant.length > 0 ? Math.round((data.filter((r: any) => r.statut === 'payee').length / gmRelevant.length) * 100) : 0,
+            montant_total_paye: data.filter((r: any) => r.statut === 'payee' || r.statut === 'termine').reduce((sum: number, r: any) => {
+              const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
+              return sum + (isNaN(val) ? 0 : val);
+            }, 0),
+          };
+
+          userProfile = {
+            ...userProfile,
+            ...stats,
+          };
+        }
+      } catch (err) {
+        console.error('Exception fetch requisitions:', err);
       }
-      
+
+      setProfile(userProfile);
       setLoading(false);
+
     } catch (error) {
-      console.error('Erreur lors du chargement des données:', error);
+      console.error('Erreur globale chargement données:', error);
       setLoading(false);
     }
+  }, [user]);
+
+  useEffect(() => {
+    loadProfileData();
+  }, [loadProfileData]);
+
+  const handleEdit = () => {
+    setEditMode(true);
+    setFormData({
+      nom_complet: profile?.nom_complet,
+      telephone: profile?.telephone,
+    });
   };
 
   const handleSave = () => {
-    setEditMode(false);
-    console.log('Profil sauvegardé:', formData);
+    if (profile) {
+      const updatedProfile = { ...profile, ...formData };
+      setProfile(updatedProfile);
+      setEditMode(false);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    }
   };
 
   const handleCancel = () => {
-    setFormData({
-      nom_complet: user?.nom_complet || '',
-      email: user?.email || '',
-      service_nom: user?.service_nom || '',
-    });
     setEditMode(false);
+    setFormData({});
   };
 
-  const formatCurrencySafe = (amount: number | undefined | null, currency: string = 'USD') => {
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const formatCurrency = (amount: number | undefined | null, currency: string = 'USD') => {
     const val = Number(amount || 0);
     return val.toLocaleString('fr-FR', {
         minimumFractionDigits: 0,
@@ -145,170 +202,22 @@ const GMProfile: React.FC = () => {
     }).replace(/[\u202F\u00A0]/g, ' ') + ' ' + currency;
   };
 
-  const handleTestPDF = () => {
-    const doc = new jsPDF();
-    const today = new Date().toLocaleDateString();
-
-    // Titre
-    doc.setFontSize(20);
-    doc.setTextColor(40, 40, 40);
-    doc.text('TEST - Réquisitions à Valider', 14, 22);
-    
-    doc.setFontSize(11);
-    doc.setTextColor(100);
-    doc.text(`Date: ${today}`, 14, 30);
-    doc.text(`Validateur: TEST USER (GM)`, 14, 36);
-    doc.text(`NOTE: Ceci est un document de test généré avec des données fictives.`, 14, 42);
-
-    let yPos = 50;
-
-    // Données fictives pour le test
-    const testRequisitions = [
-      {
-        reference: 'REQ-TEST-001',
-        created_at: new Date().toISOString(),
-        emetteur_nom: 'Jean Dupont',
-        emetteur_email: 'jean.dupont@company.com',
-        emetteur_role: 'Emetteur',
-        emetteur_zone: 'Kinshasa',
-        service_nom: 'Département IT',
-        objet: 'Achat de 5 ordinateurs portables',
-        montant: 12500,
-        devise: 'USD',
-        urgence: 'HAUTE',
-        statut: 'EN_COURS',
-        description: 'Remplacement du parc informatique obsolète pour l\'équipe de développement. Les machines actuelles ont plus de 4 ans et ralentissent la productivité.\n\nConfiguration requise:\n- i7 12th Gen\n- 32GB RAM\n- 1TB SSD\n\nFournisseur: Dell Entreprise.'
-      },
-      {
-        reference: 'REQ-TEST-002',
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-        emetteur_nom: 'Marie Martin',
-        emetteur_email: 'marie.martin@company.com',
-        emetteur_role: 'Emetteur',
-        emetteur_zone: 'Lubumbashi',
-        service_nom: 'Ressources Humaines',
-        objet: 'Formation Leadership',
-        montant: 3500,
-        devise: 'EUR',
-        urgence: 'NORMALE',
-        statut: 'EN_COURS',
-        description: 'Session de formation pour les managers juniors. Durée: 3 jours.\nLieu: Salle de conférence principale.\nIntervenant externe: Cabinet Consulting RH.'
-      }
-    ];
-
-    testRequisitions.forEach((req, index) => {
-      if (index > 0) {
-        doc.addPage();
-        yPos = 20;
-      }
-
-      // En-tête de la réquisition
-      doc.setFillColor(240, 240, 240);
-      doc.rect(14, yPos, 182, 10, 'F');
-      doc.setFontSize(12);
-      doc.setTextColor(0);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Réf: ${req.reference} - ${new Date(req.created_at).toLocaleDateString()}`, 16, yPos + 7);
-      
-      yPos += 20;
-
-      // Détails
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      
-      const details = [
-        ['Initiateur:', (req as any).emetteur_nom],
-        ['Email:', (req as any).emetteur_email],
-        ['Rôle:', (req as any).emetteur_role],
-        ['Zone:', (req as any).emetteur_zone],
-        ['Service:', (req as any).service_nom],
-        ['Objet:', req.objet],
-        ['Montant:', `${req.montant.toLocaleString()} ${req.devise}`],
-        ['Urgence:', req.urgence],
-        ['Statut Actuel:', req.statut]
-      ];
-
-      autoTable(doc, {
-        startY: yPos,
-        head: [],
-        body: details,
-        theme: 'plain',
-        styles: { fontSize: 10, cellPadding: 2 },
-        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 } },
-        margin: { left: 14 }
-      });
-
-      // Récupérer la position Y après le tableau
-      const finalY = (doc as any).lastAutoTable.finalY || yPos + 40;
-      yPos = finalY + 10;
-
-      // Description
-      doc.setFont('helvetica', 'bold');
-      doc.text('Description:', 14, yPos);
-      yPos += 7;
-      doc.setFont('helvetica', 'normal');
-      const splitDescription = doc.splitTextToSize(req.description, 180);
-      doc.text(splitDescription, 14, yPos);
-      yPos += (splitDescription.length * 5) + 15;
-
-      // Espace pour validation
-      doc.setDrawColor(150);
-      doc.setLineWidth(0.5);
-      doc.line(14, yPos, 196, yPos); // Ligne de séparation
-      yPos += 10;
-
-      doc.setFont('helvetica', 'bold');
-      doc.text('ESPACE VALIDATION (Réservé au GM)', 14, yPos);
-      yPos += 10;
-      
-      // Cadre pour annotations
-      doc.setDrawColor(200);
-      doc.rect(14, yPos, 182, 80); // Grand cadre vide
-      
-      doc.setFontSize(9);
-      doc.setTextColor(150);
-      doc.text('Annotations / Signature:', 16, yPos + 8);
-      
-      // Options à cocher (visuel)
-      yPos += 90;
-      doc.rect(20, yPos, 5, 5);
-      doc.text('VALIDÉ', 28, yPos + 4);
-      
-      doc.rect(60, yPos, 5, 5);
-      doc.text('REFUSÉ', 68, yPos + 4);
-
-      doc.rect(100, yPos, 5, 5);
-      doc.text('À CORRIGER', 108, yPos + 4);
-    });
-
-    const pageCount = doc.getNumberOfPages();
-    for(let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.text('Page ' + i + ' / ' + pageCount, 195, 285, { align: 'right' });
-    }
-
-    doc.save(`TEST_requisitions_gm_${new Date().toISOString().slice(0, 10)}.pdf`);
-  };
-
   const handleExportPDF = () => {
     const doc = new jsPDF();
     const today = new Date().toLocaleDateString();
 
-    // Titre
     doc.setFontSize(20);
     doc.setTextColor(40, 40, 40);
-    doc.text('Réquisitions à Valider', 14, 22);
+    doc.text('Réquisitions à Valider (GM)', 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Date: ${today}`, 14, 30);
-    doc.text(`Validateur: ${user?.nom_complet || 'GM'}`, 14, 36);
+    doc.text(`Validateur: ${profile?.nom_complet || 'GM'}`, 14, 36);
 
     let yPos = 45;
 
-    // Filtrer pour n'exporter que celles qui sont réellement à valider (niveau 'gm' ou 'paiement')
-    const pendingRequisitions = requisitions.filter(req => req.niveau === 'gm' || req.niveau === 'paiement');
+    const pendingRequisitions = allRequisitions.filter(req => req.niveau === 'gm' || req.niveau === 'paiement');
 
     if (pendingRequisitions.length === 0) {
       doc.text("Aucune réquisition en attente de validation.", 14, 50);
@@ -317,34 +226,25 @@ const GMProfile: React.FC = () => {
     }
 
     pendingRequisitions.forEach((req, index) => {
-      // Nouvelle page pour chaque réquisition (sauf la première si on a de la place, mais mieux vaut séparer)
       if (index > 0) {
         doc.addPage();
         yPos = 20;
       }
 
-      // En-tête de la réquisition
       doc.setFillColor(240, 240, 240);
       doc.rect(14, yPos, 182, 10, 'F');
       doc.setFontSize(12);
       doc.setTextColor(0);
       doc.setFont('helvetica', 'bold');
-      doc.text(`Réf: ${req.reference} - ${new Date(req.created_at).toLocaleDateString()}`, 16, yPos + 7);
+      doc.text(`Réf: ${req.numero} - ${new Date(req.created_at).toLocaleDateString()}`, 16, yPos + 7);
       
       yPos += 20;
 
-      // Détails
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      
       const details = [
         ['Initiateur:', (req as any).emetteur_nom || 'N/A'],
-        ['Email:', (req as any).emetteur_email || 'N/A'],
-        ['Rôle:', (req as any).emetteur_role || 'N/A'],
-        ['Zone:', (req as any).emetteur_zone || 'N/A'],
         ['Service:', (req as any).service_nom || 'N/A'],
         ['Objet:', req.objet],
-        ['Montant:', formatCurrencySafe(req.montant, req.devise)],
+        ['Montant:', formatCurrency(req.montant_usd || req.montant_cdf, req.montant_usd ? 'USD' : 'CDF')],
         ['Urgence:', req.urgence.toUpperCase()],
         ['Statut Actuel:', req.statut.toUpperCase()]
       ];
@@ -359,140 +259,18 @@ const GMProfile: React.FC = () => {
         margin: { left: 14 }
       });
 
-      // Récupérer la position Y après le tableau
       const finalY = (doc as any).lastAutoTable.finalY || yPos + 40;
       yPos = finalY + 10;
 
-      // Description
       doc.setFont('helvetica', 'bold');
       doc.text('Description:', 14, yPos);
       yPos += 7;
       doc.setFont('helvetica', 'normal');
-      const splitDescription = doc.splitTextToSize(req.description, 180);
+      const splitDescription = doc.splitTextToSize(req.commentaire_initial || 'Pas de description', 180);
       doc.text(splitDescription, 14, yPos);
-      yPos += (splitDescription.length * 5) + 15;
-
-      // Espace pour validation
-      doc.setDrawColor(150);
-      doc.setLineWidth(0.5);
-      doc.line(14, yPos, 196, yPos); // Ligne de séparation
-      yPos += 10;
-
-      doc.setFont('helvetica', 'bold');
-      doc.text('ESPACE VALIDATION (Réservé au GM)', 14, yPos);
-      yPos += 10;
-      
-      // Cadre pour annotations
-      doc.setDrawColor(200);
-      doc.rect(14, yPos, 182, 80); // Grand cadre vide
-      
-      doc.setFontSize(9);
-      doc.setTextColor(150);
-      doc.text('Annotations / Signature:', 16, yPos + 8);
-      
-      // Options à cocher (visuel)
-      yPos += 90;
-      doc.rect(20, yPos, 5, 5);
-      doc.text('VALIDÉ', 28, yPos + 4);
-      
-      doc.rect(60, yPos, 5, 5);
-      doc.text('REFUSÉ', 68, yPos + 4);
-
-      doc.rect(100, yPos, 5, 5);
-      doc.text('À CORRIGER', 108, yPos + 4);
     });
-
-    const pageCount = doc.getNumberOfPages();
-    for(let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.text('Page ' + i + ' / ' + pageCount, 195, 285, { align: 'right' });
-    }
 
     doc.save(`requisitions_gm_batch_${new Date().toISOString().slice(0, 10)}.pdf`);
-  };
-
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'admin': return 'Administrateur';
-      case 'validateur': return 'Deuxième niveau de validation';
-      case 'analyste': return 'Premier niveau de validation';
-      case 'emetteur': return 'Initiateur';
-      case 'gm': return 'Validation finale avant paiement';
-      default: return role;
-    }
-  };
-
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'admin': return '#9c27b0';
-      case 'validateur': return '#ff9800';
-      case 'analyste': return '#2196f3';
-      case 'emetteur': return '#4caf50';
-      case 'gm': return '#9c27b0';
-      default: return '#9e9e9e';
-    }
-  };
-
-  const getStatistiques = () => {
-    const total = requisitions.length;
-    const enAttente = requisitions.filter(req => 
-      req.niveau === 'paiement' && 
-      (req.statut === 'validee' || req.statut === 'en_cours')
-    ).length;
-    const completes = requisitions.filter(req => 
-      req.statut === 'payee' || 
-      req.niveau === 'termine'
-    ).length;
-    
-    console.log('Statistiques GM:', {
-      total,
-      enAttente,
-      completes,
-      details: requisitions.map(req => ({
-        id: req.id,
-        reference: req.reference,
-        statut: req.statut,
-        niveau: req.niveau
-      }))
-    });
-    
-    return {
-      total,
-      enAttente,
-      completes,
-      tauxCompletion: total > 0 ? Math.round((completes / total) * 100) : 0,
-    };
-  };
-
-  const stats = getStatistiques();
-
-  // Extract unique services
-  const services = Array.from(new Set(requisitions.map(r => (r as any).service_nom).filter(Boolean)));
-
-  const filteredRequisitions = requisitions.filter(req => {
-    const matchesStatus = 
-      filterStatus === 'all' ? true :
-      filterStatus === 'pending' ? (req.niveau === 'gm' || req.niveau === 'paiement' || (req.statut === 'validee' && req.niveau !== 'termine')) :
-      req.statut === filterStatus;
-      
-    const matchesService = filterService === 'all' || (req as any).service_nom === filterService;
-    const matchesUrgence = filterUrgence === 'all' || req.urgence === filterUrgence;
-    
-    return matchesStatus && matchesService && matchesUrgence;
-  });
-
-  const getStatutLabel = (statut: string) => {
-    switch (statut) {
-      case 'brouillon': return 'Brouillon';
-      case 'soumise': return 'Soumise';
-      case 'en_cours': return 'En cours';
-      case 'validee': return 'Validée';
-      case 'refusee': return 'Refusée';
-      case 'en_attente': return 'En attente';
-      case 'payee': return 'Payée';
-      default: return statut;
-    }
   };
 
   const getStatutColor = (statut: string) => {
@@ -502,8 +280,29 @@ const GMProfile: React.FC = () => {
       case 'en_cours': return '#ff9800';
       case 'validee': return '#4caf50';
       case 'refusee': return '#f44336';
-      case 'en_attente': return '#9c27b0';
-      case 'payee': return '#4caf50';
+      case 'payee': return '#9c27b0';
+      default: return '#9e9e9e';
+    }
+  };
+
+  const getStatutLabel = (statut: string) => {
+    switch (statut) {
+      case 'brouillon': return 'Brouillon';
+      case 'soumise': return 'Soumise';
+      case 'en_cours': return 'En cours';
+      case 'validee': return 'Validée';
+      case 'refusee': return 'Refusée';
+      case 'payee': return 'Payée';
+      default: return statut;
+    }
+  };
+
+  const getUrgenceColor = (urgence: string) => {
+    switch (urgence) {
+      case 'basse': return '#4caf50';
+      case 'normale': return '#2196f3';
+      case 'haute': return '#ff9800';
+      case 'critique': return '#f44336';
       default: return '#9e9e9e';
     }
   };
@@ -511,382 +310,361 @@ const GMProfile: React.FC = () => {
   const getUrgenceLabel = (urgence: string) => {
     switch (urgence) {
       case 'basse': return 'Basse';
-      case 'moyenne': return 'Moyenne';
+      case 'normale': return 'Normale';
       case 'haute': return 'Haute';
       case 'critique': return 'Critique';
       default: return urgence;
     }
   };
 
-  const getUrgenceColor = (urgence: string) => {
-    switch (urgence) {
-      case 'basse': return '#4caf50';
-      case 'moyenne': return '#ff9800';
-      case 'haute': return '#ff5722';
-      case 'critique': return '#f44336';
-      default: return '#9e9e9e';
-    }
-  };
+  const services = Array.from(new Set(allRequisitions.map(r => (r as any).service_nom).filter(Boolean)));
+
+  const filteredRequisitions = allRequisitions.filter(req => {
+    const matchesStatus = 
+      filterStatus === 'all' ? true :
+      filterStatus === 'pending' ? (req.niveau === 'gm' || req.niveau === 'paiement') :
+      req.statut === filterStatus;
+      
+    const matchesService = filterService === 'all' || (req as any).service_nom === filterService;
+    const matchesUrgence = filterUrgence === 'all' || req.urgence === filterUrgence;
+    
+    return matchesStatus && matchesService && matchesUrgence;
+  });
 
   if (loading) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-          <LinearProgress sx={{ width: '50%' }} />
+          <CircularProgress />
         </Box>
+      </Container>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Alert severity="error">Impossible de charger le profil</Alert>
       </Container>
     );
   }
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold', color: 'primary.main' }}>
-        Tableau de Bord - Validation Finale
-      </Typography>
-
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-        <Button 
-          variant="outlined" 
-          color="warning" 
-          startIcon={<PictureAsPdf />}
-          onClick={handleTestPDF}
-        >
-          Test PDF (Dummy Data)
-        </Button>
-        <Button 
-          variant="contained" 
-          color="secondary" 
-          startIcon={<PictureAsPdf />}
-          onClick={handleExportPDF}
-        >
-          Exporter tout en PDF (Batch)
-        </Button>
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Button onClick={() => navigate('/dashboard')} startIcon={<ArrowBack />} sx={{ mr: 2 }}>
+            Tableau de bord
+          </Button>
+          <Typography variant="h4" fontWeight="bold">Mon Profil GM</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button 
+            variant="contained" 
+            color="secondary" 
+            startIcon={<PictureAsPdf />}
+            onClick={handleExportPDF}
+          >
+            Exporter Batch PDF
+          </Button>
+          <Button variant="outlined" color="error" onClick={handleLogout} startIcon={<Logout />}>
+            Déconnexion
+          </Button>
+        </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
-        {/* Informations personnelles */}
-        <Box sx={{ flex: { xs: '1', md: '0 0 33.333%' } }}>
-          <Card sx={{ height: '100%', boxShadow: 3 }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Person color="primary" /> Informations personnelles
-              </Typography>
-              
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Avatar 
-                    sx={{ 
-                      bgcolor: getRoleColor(user?.role || ''), 
-                      width: 64, 
-                      height: 64,
-                      fontSize: 24,
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    {user?.nom_complet?.charAt(0)}
-                  </Avatar>
-                  <Box>
-                    <Typography variant="h6" fontWeight="bold">
-                      {user?.nom_complet}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      @{user?.username}
-                    </Typography>
-                  </Box>
+      {showSuccess && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          Profil mis à jour avec succès!
+        </Alert>
+      )}
+
+      <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
+        {/* Profile Card */}
+        <Box sx={{ flex: { xs: 1, md: 0.4 } }}>
+          <Card sx={{ boxShadow: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Avatar sx={{ width: 64, height: 64, mr: 2, bgcolor: 'purple' }}>
+                  <AssignmentInd sx={{ fontSize: 32 }} />
+                </Avatar>
+                <Box>
+                  <Typography variant="h6">{profile.nom_complet}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    @{profile.username}
+                  </Typography>
+                  <Chip 
+                    label="Directeur Général" 
+                    size="small" 
+                    sx={{ mt: 1, bgcolor: 'purple', color: 'white' }}
+                  />
                 </Box>
-
-                {editMode ? (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <TextField
-                      fullWidth
-                      label="Nom complet"
-                      value={formData.nom_complet}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, nom_complet: e.target.value })}
-                      variant="outlined"
-                      size="small"
-                    />
-                    <TextField
-                      fullWidth
-                      label="Email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, email: e.target.value })}
-                      variant="outlined"
-                      size="small"
-                    />
-                    <TextField
-                      fullWidth
-                      label="Service"
-                      value={formData.service_nom}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, service_nom: e.target.value })}
-                      variant="outlined"
-                      size="small"
-                    />
-                  </Box>
-                ) : (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Email fontSize="small" color="action" />
-                      <Typography variant="body2">{user?.email}</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Business fontSize="small" color="action" />
-                      <Typography variant="body2">{user?.service_nom}</Typography>
-                    </Box>
-                  </Box>
-                )}
-
-                <Chip
-                  label={getRoleLabel(user?.role || '')}
-                  size="medium"
-                  sx={{
-                    backgroundColor: getRoleColor(user?.role || ''),
-                    color: 'white',
-                    fontWeight: 'bold',
-                    mt: 2,
-                    alignSelf: 'flex-start'
-                  }}
-                />
               </Box>
 
-              {editMode && (
-                <Box sx={{ mt: 3, display: 'flex', gap: 1 }}>
+              <Divider sx={{ my: 2 }} />
+
+              <List dense>
+                <ListItem>
+                  <ListItemIcon><Email color="action" /></ListItemIcon>
+                  <ListItemText primary={profile.email} />
+                </ListItem>
+                <ListItem>
+                  <ListItemIcon><Phone color="action" /></ListItemIcon>
+                  <ListItemText primary={profile.telephone || 'Non renseigné'} />
+                </ListItem>
+                <ListItem>
+                  <ListItemIcon><Business color="action" /></ListItemIcon>
+                  <ListItemText primary={profile.service_nom} />
+                </ListItem>
+                <ListItem>
+                  <ListItemIcon><Work color="action" /></ListItemIcon>
+                  <ListItemText primary="Niveau: Validation Finale (GM)" />
+                </ListItem>
+              </List>
+
+              <Box sx={{ mt: 2 }}>
+                {!editMode ? (
                   <Button 
                     variant="contained" 
-                    onClick={handleSave}
-                    startIcon={<Save />}
+                    color="secondary"
+                    startIcon={<Edit />}
+                    onClick={handleEdit}
                     fullWidth
                   >
-                    Sauvegarder
+                    Modifier le profil
                   </Button>
-                  <Button 
-                    variant="outlined" 
-                    onClick={handleCancel}
-                    startIcon={<Cancel />}
-                    fullWidth
-                  >
-                    Annuler
-                  </Button>
-                </Box>
-              )}
+                ) : (
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button 
+                      variant="contained" 
+                      color="primary"
+                      startIcon={<Save />}
+                      onClick={handleSave}
+                      sx={{ flex: 1 }}
+                    >
+                      Enregistrer
+                    </Button>
+                    <Button 
+                      variant="outlined" 
+                      startIcon={<Cancel />}
+                      onClick={handleCancel}
+                      sx={{ flex: 1 }}
+                    >
+                      Annuler
+                    </Button>
+                  </Box>
+                )}
+              </Box>
             </CardContent>
           </Card>
         </Box>
 
-        {/* Statistiques */}
-        <Box sx={{ flex: { xs: '1', md: '0 0 66.667%' } }}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            {/* Cartes de statistiques */}
-            <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 50%', md: '1 1 25%' } }}>
-              <Card sx={{ boxShadow: 3 }}>
-                <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                    <Analytics color="primary" sx={{ fontSize: 40 }} />
-                  </Box>
-                  <Typography variant="h4" color="primary" fontWeight="bold">
-                    {stats.total}
+        {/* Stats and Content */}
+        <Box sx={{ flex: { xs: 1, md: 0.6 } }}>
+          {/* Main Stats */}
+          <Card sx={{ mb: 3, boxShadow: 3 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                <AccountBalance sx={{ mr: 1 }} color="secondary" />
+                Statistiques de Validation GM
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ flex: { xs: 1, sm: 0.33 }, textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                  <Typography variant="h4" color="secondary.main">
+                    {profile.total_requisitions_a_valider}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total à valider
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-
-            <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 50%', md: '1 1 25%' } }}>
-              <Card sx={{ boxShadow: 3 }}>
-                <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                    <Pending color="warning" sx={{ fontSize: 40 }} />
-                  </Box>
-                  <Typography variant="h4" color="warning" fontWeight="bold">
-                    {stats.enAttente}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    En attente de paiement
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-
-            <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 50%', md: '1 1 25%' } }}>
-              <Card sx={{ boxShadow: 3 }}>
-                <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                    <CheckCircle color="success" sx={{ fontSize: 40 }} />
-                  </Box>
-                  <Typography variant="h4" color="success" fontWeight="bold">
-                    {stats.completes}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Payées
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-
-            <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 50%', md: '1 1 25%' } }}>
-              <Card sx={{ boxShadow: 3 }}>
-                <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                    <Speed color="info" sx={{ fontSize: 40 }} />
-                  </Box>
-                  <Typography variant="h4" color="info" fontWeight="bold">
-                    {stats.tauxCompletion}%
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Taux de paiement
-                  </Typography>
-                  <Box sx={{ mt: 2 }}>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={stats.tauxCompletion} 
-                      sx={{ 
-                        height: 8, 
-                        borderRadius: 4,
-                        backgroundColor: 'grey.200'
-                      }}
-                    />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Box>
-          </Box>
-
-          {/* Liste des réquisitions */}
-          <Box sx={{ mt: 3 }}>
-            <Card sx={{ boxShadow: 3 }}>
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                    <Pending color="primary" /> Liste des réquisitions
-                  </Typography>
-                  
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, md: 4 }}>
-                      <FormControl size="small" fullWidth>
-                        <InputLabel>Filtrer par statut</InputLabel>
-                        <Select
-                          value={filterStatus}
-                          label="Filtrer par statut"
-                          onChange={(e) => setFilterStatus(e.target.value)}
-                        >
-                          <MenuItem value="pending">En attente de validation</MenuItem>
-                          <MenuItem value="all">Tout l'historique</MenuItem>
-                          <MenuItem value="validee">Validées</MenuItem>
-                          <MenuItem value="payee">Payées</MenuItem>
-                          <MenuItem value="refusee">Refusées</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    
-                    <Grid size={{ xs: 12, md: 4 }}>
-                      <FormControl size="small" fullWidth>
-                        <InputLabel>Service</InputLabel>
-                        <Select
-                          value={filterService}
-                          label="Service"
-                          onChange={(e) => setFilterService(e.target.value)}
-                        >
-                          <MenuItem value="all">Tous les services</MenuItem>
-                          {services.map((s: any) => (
-                            <MenuItem key={s} value={s}>{s}</MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    
-                    <Grid size={{ xs: 12, md: 4 }}>
-                      <FormControl size="small" fullWidth>
-                        <InputLabel>Urgence</InputLabel>
-                        <Select
-                          value={filterUrgence}
-                          label="Urgence"
-                          onChange={(e) => setFilterUrgence(e.target.value)}
-                        >
-                          <MenuItem value="all">Toutes urgences</MenuItem>
-                          <MenuItem value="basse">Basse</MenuItem>
-                          <MenuItem value="normale">Normale</MenuItem>
-                          <MenuItem value="haute">Haute</MenuItem>
-                          <MenuItem value="critique">Critique</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                  </Grid>
+                  <Typography variant="body2">À valider</Typography>
                 </Box>
+                <Box sx={{ flex: { xs: 1, sm: 0.33 }, textAlign: 'center', p: 2, bgcolor: 'warning.50', borderRadius: 2 }}>
+                  <Typography variant="h4" color="warning.main">
+                    {profile.requisitions_en_attente_paiement}
+                  </Typography>
+                  <Typography variant="body2">En attente paiement</Typography>
+                </Box>
+                <Box sx={{ flex: { xs: 1, sm: 0.33 }, textAlign: 'center', p: 2, bgcolor: 'success.50', borderRadius: 2 }}>
+                  <Typography variant="h4" color="success.main">
+                    {profile.requisitions_payees}
+                  </Typography>
+                  <Typography variant="body2">Total payées</Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
 
-                {filteredRequisitions.length === 0 ? (
-                  <Paper sx={{ p: 4, textAlign: 'center', bgcolor: '#f5f5f5' }}>
-                    <Typography variant="body1" color="text.secondary">
-                      Aucune réquisition trouvée pour ce filtre
-                    </Typography>
-                  </Paper>
-                ) : (
-                  <List>
-                    {filteredRequisitions.map((requisition) => (
-                      <ListItem key={requisition.id} divider>
-                        <ListItemIcon>
-                          <Pending color="primary" />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="subtitle2">
-                                {requisition.reference}
-                              </Typography>
-                              <Typography variant="body2">
-                                {requisition.objet}
-                              </Typography>
-                            </Box>
-                          }
-                          secondary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                              <Chip
-                                label={getStatutLabel(requisition.statut)}
-                                size="small"
-                                sx={{
-                                  backgroundColor: getStatutColor(requisition.statut),
-                                  color: 'white',
-                                }}
-                              />
-                              <Chip
-                                label={getUrgenceLabel(requisition.urgence)}
-                                size="small"
-                                sx={{
-                                  backgroundColor: getUrgenceColor(requisition.urgence),
-                                  color: 'white',
-                                }}
-                              />
-                              {(requisition as any).nb_pieces !== undefined && (requisition as any).nb_pieces > 0 && (
-                                <Chip
-                                  label={`${(requisition as any).nb_pieces} pièce(s)`}
-                                  size="small"
-                                  icon={<AttachFile sx={{ fontSize: 16 }} />}
-                                  variant="outlined"
-                                />
-                              )}
-                              <Typography variant="caption" color="text.secondary">
-                                {requisition.devise} {requisition.montant.toLocaleString()}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {new Date(requisition.created_at).toLocaleDateString()}
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                        <IconButton 
-                          onClick={() => navigate(`/requisitions/${requisition.id}`)}
-                          color="primary"
-                        >
-                          <Visibility />
-                        </IconButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                )}
+          {/* Global View */}
+          <Card sx={{ mb: 3, boxShadow: 3 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                <PieChart sx={{ mr: 1 }} color="secondary" />
+                Aperçu de la Trésorerie
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ flex: 1, minWidth: 200, textAlign: 'center', p: 2, bgcolor: 'indigo.50', borderRadius: 2 }}>
+                  <Typography variant="h5" color="indigo">
+                    {profile.taux_paiement}%
+                  </Typography>
+                  <Typography variant="body2">Taux de paiement</Typography>
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 200, textAlign: 'center', p: 2, bgcolor: 'success.50', borderRadius: 2 }}>
+                  <Typography variant="h5" color="success.main">
+                    ${profile.montant_total_paye.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2">Montant total décaissé</Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
+          {/* Edit Form */}
+          {editMode && (
+            <Card sx={{ mb: 3, boxShadow: 3 }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  <Settings sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Modifier mes informations
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField
+                    fullWidth
+                    label="Nom complet"
+                    value={formData.nom_complet || ''}
+                    onChange={(e) => setFormData({ ...formData, nom_complet: e.target.value })}
+                  />
+                  <TextField
+                    fullWidth
+                    label="Téléphone"
+                    value={formData.telephone || ''}
+                    onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
+                  />
+                </Box>
               </CardContent>
             </Card>
-          </Box>
+          )}
+
+          {/* Requisitions List */}
+          <Card sx={{ boxShadow: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  <FilterList sx={{ mr: 1, verticalAlign: 'middle' }} color="secondary" />
+                  Liste des Réquisitions
+                </Typography>
+                <Button 
+                  variant="outlined" 
+                  color="secondary"
+                  size="small"
+                  onClick={() => navigate('/requisitions')}
+                >
+                  Voir tout
+                </Button>
+              </Box>
+              
+              {/* Filters */}
+              <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Vue</InputLabel>
+                    <Select
+                      value={filterStatus}
+                      label="Vue"
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                    >
+                      <MenuItem value="pending">À valider / En cours</MenuItem>
+                      <MenuItem value="all">Tout l'historique</MenuItem>
+                      <MenuItem value="validee">Validées</MenuItem>
+                      <MenuItem value="payee">Payées</MenuItem>
+                      <MenuItem value="refusee">Refusées</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Service</InputLabel>
+                    <Select
+                      value={filterService}
+                      label="Service"
+                      onChange={(e) => setFilterService(e.target.value)}
+                    >
+                      <MenuItem value="all">Tous les services</MenuItem>
+                      {services.map((s: any) => (
+                        <MenuItem key={s} value={s}>{s}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Urgence</InputLabel>
+                    <Select
+                      value={filterUrgence}
+                      label="Urgence"
+                      onChange={(e) => setFilterUrgence(e.target.value)}
+                    >
+                      <MenuItem value="all">Toutes</MenuItem>
+                      <MenuItem value="basse">Basse</MenuItem>
+                      <MenuItem value="normale">Normale</MenuItem>
+                      <MenuItem value="haute">Haute</MenuItem>
+                      <MenuItem value="critique">Critique</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Paper>
+              
+              {filteredRequisitions.length > 0 ? (
+                <List>
+                  {filteredRequisitions.slice(0, 10).map((requisition) => (
+                    <ListItem key={requisition.id} divider>
+                      <ListItemIcon>
+                        <Description color="secondary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="subtitle2" fontWeight="bold">
+                              {requisition.numero || requisition.reference}
+                            </Typography>
+                            <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
+                              {requisition.objet}
+                            </Typography>
+                          </Box>
+                        }
+                        secondary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                            <Chip
+                              label={getStatutLabel(requisition.statut)}
+                              size="small"
+                              sx={{ backgroundColor: getStatutColor(requisition.statut), color: 'white', height: 20, fontSize: '0.7rem' }}
+                            />
+                            <Chip
+                              label={getUrgenceLabel(requisition.urgence)}
+                              size="small"
+                              sx={{ backgroundColor: getUrgenceColor(requisition.urgence), color: 'white', height: 20, fontSize: '0.7rem' }}
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                              {requisition.devise} {(requisition.montant_usd || requisition.montant_cdf || 0).toLocaleString()}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(requisition.created_at).toLocaleDateString()}
+                            </Typography>
+                          </Box>
+                        }
+                      />
+                      <IconButton 
+                        onClick={() => navigate(`/requisitions/${requisition.id}`)}
+                        color="secondary"
+                      >
+                        <Visibility />
+                      </IconButton>
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <CheckCircle sx={{ fontSize: 48, color: 'success.light', mb: 1 }} />
+                  <Typography variant="body2" color="text.secondary">
+                    Aucune réquisition trouvée pour ces filtres.
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
         </Box>
       </Box>
     </Container>
