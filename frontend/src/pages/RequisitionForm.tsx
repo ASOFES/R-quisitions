@@ -318,8 +318,16 @@ export default function RequisitionForm() {
         
         // Recalculate total if quantity or price changes
         if (field === 'quantite' || field === 'prix_unitaire') {
-          const qty = field === 'quantite' ? Number(value) : item.quantite;
-          const price = field === 'prix_unitaire' ? Number(value) : item.prix_unitaire;
+          // Helper pour parser les nombres correctement (gère virgule et vide)
+          const parseNum = (val: any) => {
+            if (val === '' || val === undefined || val === null) return 0;
+            const strVal = String(val).replace(',', '.');
+            const parsed = parseFloat(strVal);
+            return isNaN(parsed) ? 0 : parsed;
+          };
+
+          const qty = field === 'quantite' ? parseNum(value) : parseNum(item.quantite);
+          const price = field === 'prix_unitaire' ? parseNum(value) : parseNum(item.prix_unitaire);
           updatedItem.total = qty * price;
         }
         
@@ -330,7 +338,10 @@ export default function RequisitionForm() {
   };
 
   useEffect(() => {
-    const total = items.reduce((sum, item) => sum + item.total, 0);
+    const total = items.reduce((sum, item) => {
+      const lineTotal = typeof item.total === 'number' ? item.total : 0;
+      return sum + lineTotal;
+    }, 0);
     setFormData(prev => ({ ...prev, montant: total.toFixed(2) }));
   }, [items]);
 
@@ -683,8 +694,8 @@ export default function RequisitionForm() {
                         fullWidth
                         size="small"
                         variant="standard"
-                        type="number"
                         value={item.quantite}
+                        inputProps={{ inputMode: 'decimal' }}
                         onChange={(e) => handleUpdateItem(item.id, 'quantite', e.target.value)}
                       />
                     </TableCell>
@@ -693,14 +704,14 @@ export default function RequisitionForm() {
                         fullWidth
                         size="small"
                         variant="standard"
-                        type="number"
                         value={item.prix_unitaire}
+                        inputProps={{ inputMode: 'decimal' }}
                         onChange={(e) => handleUpdateItem(item.id, 'prix_unitaire', e.target.value)}
                       />
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" fontWeight="bold">
-                        {item.total.toFixed(2)} $
+                        {(item.total || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -746,8 +757,8 @@ export default function RequisitionForm() {
               >
                 Ajouter une ligne
               </Button>
-              <Typography variant="subtitle1" fontWeight="bold">
-                Total: {items.reduce((sum, item) => sum + item.total, 0).toFixed(2)} $
+              <Typography variant="subtitle1" fontWeight="bold" color="primary.main">
+                Total Général: {parseFloat(formData.montant || '0').toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $
               </Typography>
             </Box>
           </TableContainer>
