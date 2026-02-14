@@ -301,7 +301,16 @@ const PMProfile: React.FC = () => {
         </Button>
       </Box>
 
-      <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 4, borderRadius: 2 }}>
+      <Alert 
+        severity="info" 
+        icon={<InfoIcon />} 
+        sx={{ mb: 4, borderRadius: 2 }}
+        action={
+          <Button color="inherit" size="small" onClick={() => navigate('/guide')}>
+            Voir le guide complet
+          </Button>
+        }
+      >
         <AlertTitle sx={{ fontWeight: 'bold' }}>Notice de rôle : PM / Validateur</AlertTitle>
         Vous êtes le <strong>Décideur de Service</strong>. Vous engagez officiellement le budget de votre service ou projet et validez la faisabilité financière finale à votre niveau.
       </Alert>

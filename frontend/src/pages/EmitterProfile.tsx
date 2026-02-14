@@ -292,7 +292,16 @@ const EmitterProfile: React.FC = () => {
         </Box>
       </Box>
 
-      <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 4, borderRadius: 2 }}>
+      <Alert 
+        severity="info" 
+        icon={<InfoIcon />} 
+        sx={{ mb: 4, borderRadius: 2 }}
+        action={
+          <Button color="inherit" size="small" onClick={() => navigate('/guide')}>
+            Voir le guide complet
+          </Button>
+        }
+      >
         <AlertTitle sx={{ fontWeight: 'bold' }}>Notice de rôle : Émetteur (Initiateur)</AlertTitle>
         Vous êtes le <strong>Point de départ</strong>. Vous transformez un besoin métier en réquisition formelle, suivez vos demandes et apportez les corrections si nécessaire.
       </Alert>

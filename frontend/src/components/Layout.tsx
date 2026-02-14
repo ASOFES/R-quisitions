@@ -247,7 +247,21 @@ const Layout: React.FC = () => {
             {menuItems.find(item => item.path === location.pathname)?.text || 'Application'}
           </Typography>
 
-          <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Tooltip title="Guide d'utilisation">
+              <IconButton 
+                color="inherit" 
+                onClick={() => navigate('/guide')}
+                sx={{ 
+                  mr: 1, 
+                  color: 'primary.main',
+                  '&:hover': { bgcolor: 'primary.light', color: 'white' }
+                }}
+              >
+                <HelpIcon />
+              </IconButton>
+            </Tooltip>
+
             <Tooltip title="Paramètres du compte">
               <IconButton onClick={handleMenuOpen} size="small" sx={{ ml: 2 }}>
                 <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>

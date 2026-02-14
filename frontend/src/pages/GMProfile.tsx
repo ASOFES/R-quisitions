@@ -382,7 +382,16 @@ const GMProfile: React.FC = () => {
         </Box>
       </Box>
 
-      <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 4, borderRadius: 2 }}>
+      <Alert 
+        severity="info" 
+        icon={<InfoIcon />} 
+        sx={{ mb: 4, borderRadius: 2 }}
+        action={
+          <Button color="inherit" size="small" onClick={() => navigate('/guide')}>
+            Voir le guide complet
+          </Button>
+        }
+      >
         <AlertTitle sx={{ fontWeight: 'bold' }}>Notice de rôle : General Manager</AlertTitle>
         Vous êtes l'<strong>Autorité Suprême</strong>. Vous apposez la signature finale pour les validations critiques et arbitrez les priorités stratégiques de l'entreprise.
       </Alert>
