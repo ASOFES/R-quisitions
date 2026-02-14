@@ -25,23 +25,39 @@ class PushNotificationService {
     static async subscribeToNotifications() {
         try {
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                console.warn('Les notifications push ne sont pas supportées par ce navigateur');
-                return false;
+                throw new Error('Les notifications push ne sont pas supportées par ce navigateur.');
+            }
+
+            if (!window.isSecureContext) {
+                throw new Error('Les notifications push nécessitent une connexion sécurisée (HTTPS).');
             }
 
             // 1. Demander la permission
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
-                console.warn('Permission de notification refusée');
-                return false;
+                throw new Error('Permission de notification refusée. Veuillez l\'activer dans les paramètres de votre navigateur.');
             }
 
             // 2. Enregistrer le service worker
             const registration = await navigator.serviceWorker.register('/service-worker.js');
+            console.log('Service Worker enregistré:', registration);
             
+            // Attendre que le SW soit prêt
+            await navigator.serviceWorker.ready;
+
             // 3. Récupérer la clé publique du serveur
-            const { data } = await api.get('/notifications/vapid-public-key');
-            const publicVapidKey = data.publicKey;
+            let publicVapidKey;
+            try {
+                const { data } = await api.get('/notifications/vapid-public-key');
+                publicVapidKey = data.publicKey;
+            } catch (apiErr) {
+                console.error('Erreur lors de la récupération de la clé VAPID:', apiErr);
+                throw new Error('Impossible de contacter le serveur de notifications. Vérifiez votre connexion.');
+            }
+
+            if (!publicVapidKey) {
+                throw new Error('Le serveur n\'a pas renvoyé de clé de configuration valide.');
+            }
 
             // 4. Souscrire au service de push
             const subscription = await registration.pushManager.subscribe({
@@ -53,10 +69,10 @@ class PushNotificationService {
             await api.post('/notifications/subscribe', { subscription });
 
             console.log('Abonnement aux notifications push réussi !');
-            return true;
-        } catch (error) {
-            console.error('Erreur lors de l\'abonnement push:', error);
-            return false;
+            return { success: true };
+        } catch (error: any) {
+            console.error('Détails de l\'erreur push:', error);
+            return { success: false, message: error.message || 'Une erreur inconnue est survenue.' };
         }
     }
 

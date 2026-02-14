@@ -73,12 +73,12 @@ const SimpleDashboard: React.FC = () => {
   };
 
   const handleSubscribe = async () => {
-    const success = await PushNotificationService.subscribeToNotifications();
-    if (success) {
+    const result = await PushNotificationService.subscribeToNotifications();
+    if (result.success) {
       setIsSubscribed(true);
       alert('Vous recevrez désormais des notifications système même si le navigateur est fermé !');
     } else {
-      alert('Impossible d\'activer les notifications. Vérifiez les paramètres de votre navigateur.');
+      alert(result.message || 'Impossible d\'activer les notifications. Vérifiez les paramètres de votre navigateur.');
     }
   };
 
