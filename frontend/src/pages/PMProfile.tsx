@@ -121,26 +121,46 @@ const PMProfile: React.FC = () => {
           const allRequisitions = await response.json();
           
           // Filter for PM: requisitions at 'validateur' level or already validated/paid
-          const pmRequisitions = allRequisitions.filter((req: any) => 
-            req.niveau === 'validateur' || 
-            req.niveau === 'paiement' ||
-            req.statut === 'validee' ||
-            req.statut === 'payee' ||
-            req.statut === 'termine'
-          );
+          // Backend PM/Validateur Levels: challenger, validateur, gm, paiement, justificatif, termine
+          // Plus 'approbation_service' if chef
+          // STRICT SERVICE RESTRICTION
+          const pmRequisitions = allRequisitions.filter((req: any) => {
+            const isChef = req.service_chef_id === user?.id;
+            const isMyService = req.service_id === user?.service_id;
+            
+            // Requisition levels visible to PM
+            const isVisibleLevel = [
+              'challenger', 
+              'validateur', 
+              'gm', 
+              'paiement', 
+              'justificatif', 
+              'termine'
+            ].includes(req.niveau);
+
+            // Chef can see 'approbation_service' even if not their usual level
+            const isChefApproval = req.niveau === 'approbation_service' && isChef;
+
+            // Strict service filter (except for admin, but we are in PM profile)
+            return (isVisibleLevel || isChefApproval) && isMyService;
+          });
           
           setRecentRequisitions(pmRequisitions.slice(0, 10));
 
           const pmStats = {
-            total_requisitions_a_valider: pmRequisitions.filter((r: any) => r.niveau === 'validateur').length,
-            requisitions_en_attente: pmRequisitions.filter((r: any) => r.niveau === 'validateur' && r.statut === 'en_cours').length,
-            requisitions_validees: allRequisitions.filter((r: any) => r.statut === 'validee' || r.statut === 'payee' || r.statut === 'termine').length,
-            requisitions_rejetees: allRequisitions.filter((r: any) => r.statut === 'refusee').length,
-            montant_total_valide: allRequisitions.filter((r: any) => r.statut === 'validee' || r.statut === 'payee' || r.statut === 'termine').reduce((sum: number, r: any) => {
+            total_requisitions_a_valider: pmRequisitions.filter((r: any) => 
+              r.niveau === 'validateur' || (r.niveau === 'approbation_service' && r.service_chef_id === user?.id)
+            ).length,
+            requisitions_en_attente: pmRequisitions.filter((r: any) => 
+              (r.niveau === 'validateur' || r.niveau === 'approbation_service') && r.statut === 'en_cours'
+            ).length,
+            requisitions_validees: pmRequisitions.filter((r: any) => ['validee', 'payee', 'termine'].includes(r.statut)).length,
+            requisitions_rejetees: pmRequisitions.filter((r: any) => r.statut === 'refusee').length,
+            montant_total_valide: pmRequisitions.filter((r: any) => ['validee', 'payee', 'termine'].includes(r.statut)).reduce((sum: number, r: any) => {
               const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
               return sum + (isNaN(val) ? 0 : val);
             }, 0),
-            taux_approbation: pmRequisitions.length > 0 ? Math.round((pmRequisitions.filter((r: any) => r.statut === 'validee' || r.statut === 'payee').length / pmRequisitions.length) * 100) : 0,
+            taux_approbation: pmRequisitions.length > 0 ? Math.round((pmRequisitions.filter((r: any) => ['validee', 'payee', 'termine'].includes(r.statut)).length / pmRequisitions.length) * 100) : 0,
           };
 
           userProfile = {

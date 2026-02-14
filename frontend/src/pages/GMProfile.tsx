@@ -124,20 +124,25 @@ const GMProfile: React.FC = () => {
           setAllRequisitions(data);
 
           // Calculate stats for GM
+          // Backend GM Levels: gm, paiement, justificatif, termine
+          // Plus 'approbation_service' if chef
           const gmRelevant = data.filter((req: any) => 
             req.niveau === 'gm' || 
             req.niveau === 'paiement' || 
-            req.statut === 'validee' ||
-            req.statut === 'payee' ||
-            req.statut === 'termine'
+            req.niveau === 'justificatif' ||
+            req.niveau === 'termine' ||
+            (req.niveau === 'approbation_service' && req.service_chef_id === user?.id) ||
+            ['validee', 'payee', 'termine'].includes(req.statut)
           );
 
           const stats = {
-            total_requisitions_a_valider: gmRelevant.filter((r: any) => r.niveau === 'gm').length,
+            total_requisitions_a_valider: gmRelevant.filter((r: any) => 
+              r.niveau === 'gm' || (r.niveau === 'approbation_service' && r.service_chef_id === user?.id)
+            ).length,
             requisitions_en_attente_paiement: gmRelevant.filter((r: any) => r.niveau === 'paiement' && r.statut !== 'payee').length,
-            requisitions_payees: data.filter((r: any) => r.statut === 'payee' || r.statut === 'termine').length,
+            requisitions_payees: data.filter((r: any) => ['payee', 'termine'].includes(r.statut)).length,
             taux_paiement: gmRelevant.length > 0 ? Math.round((data.filter((r: any) => r.statut === 'payee').length / gmRelevant.length) * 100) : 0,
-            montant_total_paye: data.filter((r: any) => r.statut === 'payee' || r.statut === 'termine').reduce((sum: number, r: any) => {
+            montant_total_paye: data.filter((r: any) => ['payee', 'termine'].includes(r.statut)).reduce((sum: number, r: any) => {
               const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
               return sum + (isNaN(val) ? 0 : val);
             }, 0),

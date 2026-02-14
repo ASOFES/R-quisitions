@@ -60,26 +60,45 @@ const SimpleDashboard: React.FC = () => {
       if (user?.role === 'admin') {
         userRequisitions = allRequisitions;
       } else if (user?.role === 'analyste') {
+        // Analyst sees almost everything (workflow levels)
         userRequisitions = allRequisitions.filter(req => 
-          req.niveau === 'analyst' || 
-          req.statut === 'soumise' || 
-          req.statut === 'en_cours' ||
+          [
+            'emetteur', 'analyste', 'challenger', 'validateur', 
+            'gm', 'compilation', 'validation_bordereau', 
+            'paiement', 'justificatif', 'termine'
+          ].includes(req.niveau) || 
+          (req.niveau === 'approbation_service' && req.service_chef_id === user?.id) ||
           req.statut === 'refusee'
         );
-      } else if (user?.role === 'validateur') {
+      } else if (user?.role === 'validateur' || user?.role === 'pm') {
+        // PM sees their service only + specific levels
         userRequisitions = allRequisitions.filter(req => 
-          req.niveau === 'validateur' || 
-          req.statut === 'en_cours' ||
-          req.statut === 'validee'
+          (
+            ['challenger', 'validateur', 'gm', 'paiement', 'justificatif', 'termine'].includes(req.niveau) || 
+            (req.niveau === 'approbation_service' && req.service_chef_id === user?.id)
+          ) && req.service_id === user?.service_id
+        );
+      } else if (user?.role === 'gm') {
+        // GM sees GM levels + chef override
+        userRequisitions = allRequisitions.filter(req => 
+          ['gm', 'paiement', 'justificatif', 'termine'].includes(req.niveau) || 
+          (req.niveau === 'approbation_service' && req.service_chef_id === user?.id) ||
+          ['validee', 'payee', 'termine'].includes(req.statut)
         );
       } else {
-        userRequisitions = allRequisitions.filter(req => req.emetteur_id === user?.id);
+        // Emetteur sees own + chef override
+        userRequisitions = allRequisitions.filter(req => 
+          req.emetteur_id === user?.id || 
+          (req.niveau === 'approbation_service' && req.service_chef_id === user?.id)
+        );
       }
 
       setStats({
         totalRequisitions: userRequisitions.length,
-        enCours: userRequisitions.filter((r: any) => r.statut === 'en_cours').length,
-        validees: userRequisitions.filter((r: any) => r.statut === 'validee').length,
+        enCours: userRequisitions.filter((r: any) => 
+          ['en_cours', 'soumise'].includes(r.statut) || r.niveau === 'approbation_service'
+        ).length,
+        validees: userRequisitions.filter((r: any) => ['validee', 'payee', 'termine'].includes(r.statut)).length,
         urgentes: userRequisitions.filter((r: any) => r.urgence === 'critique' || r.urgence === 'haute').length,
         totalUsers: user?.role === 'admin' ? 15 : 0,
         totalServices: user?.role === 'admin' ? 8 : 0,

@@ -461,7 +461,13 @@ const RequisitionsList: React.FC = () => {
     const reqNiveau = requisition.niveau?.toLowerCase();
 
     // Correspondance directe (le cas standard : Analyste sur Analyste, Challenger sur Challenger, etc.)
-    if (userRole && reqNiveau && userRole === reqNiveau) return true;
+    if (userRole && reqNiveau && userRole === reqNiveau) {
+      // Pour les validateurs/PM/Challengers, on vérifie aussi le service
+      if (['validateur', 'pm', 'challenger'].includes(userRole)) {
+        return requisition.service_id === user.service_id;
+      }
+      return true;
+    }
 
     // Logique de workflow et exceptions
     if (userRole === 'emetteur' && reqNiveau === 'emetteur') return true;
@@ -469,13 +475,18 @@ const RequisitionsList: React.FC = () => {
     // Chef de service (si l'utilisateur est le chef du service de la réquisition)
     if (reqNiveau === 'approbation_service' && requisition.service_chef_id === user.id) return true;
 
-    if (userRole === 'analyste' && reqNiveau === 'emetteur') return true;
+    if (userRole === 'analyste' && (reqNiveau === 'emetteur' || reqNiveau === 'approbation_service')) return true;
     if (userRole === 'analyste' && reqNiveau === 'validation_bordereau') return true;
-    if (userRole === 'pm' && reqNiveau === 'validateur') return true;
-    // Permettre au PM/Validateur d'agir aussi si la réquisition est au niveau 'challenger' (workflow simplifié)
-    if ((userRole === 'pm' || userRole === 'validateur') && reqNiveau === 'challenger') return true;
     
-    return false;
+    // PM/Validateur
+    if ((userRole === 'pm' || userRole === 'validateur') && reqNiveau === 'validateur' && requisition.service_id === user.service_id) return true;
+    if ((userRole === 'pm' || userRole === 'validateur') && reqNiveau === 'challenger' && requisition.service_id === user.service_id) return true;
+    
+    // GM
+    if (userRole === 'gm' && reqNiveau === 'gm') return true;
+    
+    // Challenger
+    if (userRole === 'challenger' && reqNiveau === 'challenger' && requisition.service_id === user.service_id) return true;
   };
 
   const handleOpenActionDialog = (requisition: Requisition, action: 'valider' | 'refuser' | 'commenter') => {

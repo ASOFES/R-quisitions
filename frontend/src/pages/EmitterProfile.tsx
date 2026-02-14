@@ -117,15 +117,22 @@ const EmitterProfile: React.FC = () => {
         
         if (response.ok) {
           const data = await response.json();
-          // Filter own requisitions
-          const myRequisitions = data.filter((req: any) => req.emetteur_id === user?.id);
+          // Filter own requisitions OR those where user is chef de service (for validation)
+          const myRequisitions = data.filter((req: any) => 
+            req.emetteur_id === user?.id || 
+            (req.niveau === 'approbation_service' && req.service_chef_id === user?.id)
+          );
           
           setAllUserRequisitions(myRequisitions);
 
           const stats = {
             total_requisitions: myRequisitions.length,
-            requisitions_en_cours: myRequisitions.filter((r: any) => r.statut === 'en_cours' || r.statut === 'soumise').length,
-            requisitions_validees: myRequisitions.filter((r: any) => r.statut === 'validee' || r.statut === 'payee' || r.statut === 'termine').length,
+            requisitions_en_cours: myRequisitions.filter((r: any) => 
+              r.statut === 'en_cours' || 
+              r.statut === 'soumise' || 
+              (r.niveau === 'approbation_service' && r.service_chef_id === user?.id)
+            ).length,
+            requisitions_validees: myRequisitions.filter((r: any) => ['validee', 'payee', 'termine'].includes(r.statut)).length,
             requisitions_refusees: myRequisitions.filter((r: any) => r.statut === 'refusee').length,
             montant_total: myRequisitions.reduce((sum: number, r: any) => {
               const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));

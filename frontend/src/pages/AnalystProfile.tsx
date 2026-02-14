@@ -140,21 +140,34 @@ const AnalystProfile: React.FC = () => {
           console.log('Réquisitions récupérées:', allRequisitions.length);
           
           // Filter and Calculate Stats
+          // Backend Analyst Levels: emetteur, analyste, challenger, validateur, gm, compilation, validation_bordereau, paiement, justificatif, termine
+          // Plus 'approbation_service' if chef
           const requisitionsToAnalyse = allRequisitions.filter((req: any) => 
             req.niveau === 'emetteur' || 
             req.niveau === 'analyste' || 
             req.niveau === 'challenger' ||
-            req.statut === 'refusee' || 
-            req.niveau === 'compilation'
+            req.niveau === 'validateur' ||
+            req.niveau === 'gm' ||
+            req.niveau === 'compilation' ||
+            req.niveau === 'validation_bordereau' ||
+            req.niveau === 'paiement' ||
+            req.niveau === 'justificatif' ||
+            req.niveau === 'termine' ||
+            (req.niveau === 'approbation_service' && req.service_chef_id === user?.id) ||
+            req.statut === 'refusee'
           );
           
-          setRecentRequisitions(requisitionsToAnalyse.slice(0, 5));
+          setRecentRequisitions(requisitionsToAnalyse.slice(0, 10));
 
           const analystStats = {
             total_requisitions_analysees: requisitionsToAnalyse.length,
-            requisitions_en_attente: requisitionsToAnalyse.filter((r: any) => r.statut === 'soumise').length,
-            requisitions_approuvees: allRequisitions.filter((r: any) => r.statut === 'validee').length,
-            requisitions_rejetees: requisitionsToAnalyse.filter((r: any) => r.statut === 'refusee').length,
+            requisitions_en_attente: requisitionsToAnalyse.filter((r: any) => 
+              r.niveau === 'analyste' || (r.niveau === 'approbation_service' && r.service_chef_id === user?.id)
+            ).length,
+            requisitions_approuvees: allRequisitions.filter((r: any) => 
+              ['validee', 'payee', 'termine'].includes(r.statut)
+            ).length,
+            requisitions_rejetees: allRequisitions.filter((r: any) => r.statut === 'refusee').length,
             montant_total_analyse: requisitionsToAnalyse.reduce((sum: number, r: any) => {
               const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
               return sum + (isNaN(val) ? 0 : val);
@@ -163,7 +176,7 @@ const AnalystProfile: React.FC = () => {
               const val = parseFloat(String(r.montant_usd || r.montant_cdf || 0));
               return sum + (isNaN(val) ? 0 : val);
             }, 0) / requisitionsToAnalyse.length : 0,
-            taux_validation: allRequisitions.length > 0 ? Math.round((allRequisitions.filter((r: any) => r.statut === 'validee').length / allRequisitions.length) * 100) : 0,
+            taux_validation: allRequisitions.length > 0 ? Math.round((allRequisitions.filter((r: any) => ['validee', 'payee', 'termine'].includes(r.statut)).length / allRequisitions.length) * 100) : 0,
           };
 
           // Update profile with stats
