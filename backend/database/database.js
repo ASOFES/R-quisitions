@@ -289,6 +289,15 @@ function runSqliteMigrations() {
         dbInstance.run(tableSql, () => {});
     });
 
+    // Default workflow levels for auto-validation settings
+    const defaultLevels = [
+        'emetteur', 'approbation_service', 'analyste', 'challenger', 
+        'validateur', 'gm', 'compilation', 'validation_bordereau'
+    ];
+    defaultLevels.forEach(level => {
+        dbInstance.run("INSERT OR IGNORE INTO workflow_settings (niveau, delai_minutes) VALUES (?, 0)", [level]);
+    });
+
     // Default settings
     dbInstance.run("INSERT OR IGNORE INTO app_settings (key, value, description) VALUES ('exchange_rate', '2800', 'Taux de change USD/CDF')", () => {});
     

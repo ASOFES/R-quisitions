@@ -159,12 +159,14 @@ const SettingsPage: React.FC = () => {
   };
 
   const workflowSteps = [
-    { key: 'emetteur', label: 'Emetteur (Correction)' },
-    { key: 'analyste', label: 'Analyste' },
-    { key: 'challenger', label: 'Challenger' },
-    { key: 'validateur', label: 'Validateur (PM)' },
-    { key: 'gm', label: 'General Manager' }
-    // Comptable exclu (sécurité)
+    { key: 'emetteur', label: 'Émetteur (Soumission)' },
+    { key: 'approbation_service', label: 'Chef de Service (Approbation)' },
+    { key: 'analyste', label: 'Analyste (Examen)' },
+    { key: 'challenger', label: 'Challenger (Vérification)' },
+    { key: 'validateur', label: 'Validateur / PM (Approbation)' },
+    { key: 'gm', label: 'General Manager (Validation Finale)' },
+    { key: 'compilation', label: 'Compilation (Finance)' },
+    { key: 'validation_bordereau', label: 'Validation Bordereau (Finance)' }
   ];
 
   return (

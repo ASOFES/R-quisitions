@@ -239,7 +239,7 @@ class WorkflowService {
     // Pour chaque niveau configuré
     for (const [niveau, delai] of Object.entries(settings)) {
         if (!delai || delai <= 0) continue; // Pas de délai configuré
-        if (niveau === 'comptable') continue; // Pas de validation auto pour le paiement (sécurité)
+        if (niveau === 'comptable' || niveau === 'paiement') continue; // Pas de validation auto pour le paiement (sécurité)
 
         // Trouver les réquisitions bloquées à ce niveau depuis plus de X minutes
         const isPostgres = !!process.env.DATABASE_URL;
