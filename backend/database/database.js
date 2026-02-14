@@ -331,14 +331,21 @@ const dbUtils = {
         }
         
         // Auto-inject RETURNING id pour les INSERT si absent (et si pas déjà géré par ON CONFLICT)
-        if (pgQuery.trim().toUpperCase().startsWith('INSERT') && !pgQuery.toUpperCase().includes('RETURNING')) {
+        // On évite de l'ajouter pour les tables sans colonne 'id' (settings)
+        const noIdTables = ['app_settings', 'workflow_settings'];
+        const insertMatch = pgQuery.match(/INSERT\s+INTO\s+(\w+)/i);
+        const tableName = insertMatch ? insertMatch[1].toLowerCase() : null;
+
+        if (pgQuery.trim().toUpperCase().startsWith('INSERT') && 
+            !pgQuery.toUpperCase().includes('RETURNING') && 
+            (!tableName || !noIdTables.includes(tableName))) {
              pgQuery += ' RETURNING id';
         }
 
         dbInstance.query(pgQuery, params, (err, res) => {
           if (err) return reject(err);
           // rowCount est standard, rows contient le retour
-          const id = (res.rows && res.rows.length > 0) ? res.rows[0].id : null;
+          const id = (res.rows && res.rows.length > 0 && res.rows[0].id !== undefined) ? res.rows[0].id : null;
           resolve({ id: id, changes: res.rowCount });
         });
       } else {
