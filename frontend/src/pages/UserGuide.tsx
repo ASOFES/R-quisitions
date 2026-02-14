@@ -135,7 +135,7 @@ const UserGuide: React.FC = () => {
 
       <Grid container spacing={4}>
         {roles.map((role, index) => (
-          <Grid item xs={12} md={6} key={index}>
+          <Grid size={{ xs: 12, md: 6 }} key={index}>
             <Card 
               sx={{ 
                 height: '100%', 

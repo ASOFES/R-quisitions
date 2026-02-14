@@ -291,7 +291,7 @@ const PMProfile: React.FC = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Button onClick="{() => navigate('/dashboard')}" startIcon={<ArrowBack />} sx={{ mr: 2 }}>
+          <Button onClick={() => navigate('/dashboard')} startIcon={<ArrowBack />} sx={{ mr: 2 }}>
             Tableau de bord
           </Button>
           <Typography variant="h4" fontWeight="bold">Mon Profil Manager</Typography>

@@ -14,8 +14,10 @@ export interface RequisitionItem {
 export interface Requisition {
   id: number;
   reference: string;
+  numero?: string;  // Ajout pour compatibilité avec l'API backend
   objet: string;
   description: string;
+  commentaire_initial?: string; // Ajout pour compatibilité backend
   montant: number;
   montant_usd?: number;  // Ajout pour compatibilité avec l'API backend
   montant_cdf?: number;  // Ajout pour compatibilité avec l'API backend
