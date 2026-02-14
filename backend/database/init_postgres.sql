@@ -155,6 +155,15 @@ CREATE TABLE IF NOT EXISTS workflow_settings (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Inserts
 INSERT INTO services (code, nom, description) VALUES
 ('RH', 'Ressources Humaines', 'Gestion du personnel et des ressources humaines'),

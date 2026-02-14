@@ -36,6 +36,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import RequisitionService from '../services/RequisitionService';
+import PushNotificationService from '../services/PushNotificationService';
 import { API_BASE_URL } from '../config';
 import api from '../services/api';
 
@@ -53,6 +54,33 @@ const SimpleDashboard: React.FC = () => {
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [compilingPdf, setCompilingPdf] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [checkingPush, setCheckingPush] = useState(true);
+
+  useEffect(() => {
+    checkPushSubscription();
+  }, []);
+
+  const checkPushSubscription = async () => {
+    try {
+      const subscribed = await PushNotificationService.isSubscribed();
+      setIsSubscribed(subscribed);
+    } catch (err) {
+      console.error('Erreur check push:', err);
+    } finally {
+      setCheckingPush(false);
+    }
+  };
+
+  const handleSubscribe = async () => {
+    const success = await PushNotificationService.subscribeToNotifications();
+    if (success) {
+      setIsSubscribed(true);
+      alert('Vous recevrez désormais des notifications système même si le navigateur est fermé !');
+    } else {
+      alert('Impossible d\'activer les notifications. Vérifiez les paramètres de votre navigateur.');
+    }
+  };
 
   useEffect(() => {
     const calculateStats = (allRequisitions: any[]) => {
@@ -268,11 +296,14 @@ const SimpleDashboard: React.FC = () => {
             {compilingPdf ? 'Compilation...' : 'Compiler PDF'}
           </Button>
            <Button 
-            variant="outlined" 
+            variant={isSubscribed ? "contained" : "outlined"} 
+            color={isSubscribed ? "success" : "primary"}
             startIcon={<Notifications />}
+            onClick={handleSubscribe}
+            disabled={isSubscribed || checkingPush}
             sx={{ borderRadius: 2, px: 2 }}
           >
-            Notifications
+            {isSubscribed ? 'Notifications Actives' : 'Activer Notifications'}
           </Button>
           <Button 
             variant="contained" 

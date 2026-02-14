@@ -7,6 +7,7 @@ const PdfService = require('../services/PdfService');
 const WorkflowService = require('../services/WorkflowService');
 const StorageService = require('../services/StorageService');
 const BudgetService = require('../services/BudgetService');
+const NotificationService = require('../services/NotificationService');
 
 const router = express.Router();
 
@@ -362,6 +363,19 @@ router.post('/', authenticateToken, requireRole(['emetteur', 'admin']), upload.a
           [result.id, file.originalname, uploadResult.filename, file.size, file.mimetype, user.id]
         );
       }
+    }
+
+    // --- ENVOI DE LA NOTIFICATION PUSH ---
+    try {
+        // On notifie les analystes qu'une nouvelle réquisition a été créée
+        await NotificationService.sendNotificationToRole(
+            'analyste',
+            `Nouvelle réquisition: ${numero}`,
+            `Objet: ${objet} (Émis par ${user.nom_complet || user.username})`,
+            `/requisitions/${result.id}`
+        );
+    } catch (pushErr) {
+        console.error('Erreur lors de l\'envoi de la notification push (creation):', pushErr);
     }
 
     res.status(201).json({

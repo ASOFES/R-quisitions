@@ -1,5 +1,6 @@
 const { dbUtils } = require('../database/database');
 const BudgetService = require('./BudgetService');
+const NotificationService = require('./NotificationService');
 
 const WORKFLOW_STEPS = {
   'emetteur': { valider: 'analyste', modifier: 'emetteur', refuser: 'annule' },
@@ -228,7 +229,64 @@ class WorkflowService {
         [requisitionId, userId || null, action, commentaire, currentNiveau, niveauApres]
     );
 
+    // --- ENVOI DES NOTIFICATIONS PUSH ---
+    try {
+        const reqInfo = await dbUtils.get('SELECT numero, objet, emetteur_id FROM requisitions WHERE id = ?', [requisitionId]);
+        
+        if (action === 'valider') {
+            // Notifier le prochain niveau
+            if (niveauApres && niveauApres !== 'termine') {
+                const roleDestinataire = this.getRoleForNiveau(niveauApres);
+                if (roleDestinataire) {
+                    await NotificationService.sendNotificationToRole(
+                        roleDestinataire,
+                        `Nouvelle réquisition à valider: ${reqInfo.numero}`,
+                        `Objet: ${reqInfo.objet} (Niveau: ${niveauApres})`,
+                        `/requisitions/${requisitionId}`
+                    );
+                }
+            }
+            
+            // Notifier l'émetteur que sa réquisition a avancé (sauf si c'est lui qui a validé)
+            if (reqInfo.emetteur_id !== userId) {
+                await NotificationService.sendNotificationToUser(
+                    reqInfo.emetteur_id,
+                    `Votre réquisition ${reqInfo.numero} a avancé`,
+                    `Nouveau niveau: ${niveauApres || 'Terminé'}`,
+                    `/requisitions/${requisitionId}`
+                );
+            }
+        } else if (action === 'refuser') {
+            // Notifier l'émetteur du refus/correction
+            await NotificationService.sendNotificationToUser(
+                reqInfo.emetteur_id,
+                `Action requise: Réquisition ${reqInfo.numero}`,
+                `Statut: ${currentNiveau === 'emetteur' ? 'Annulée' : 'À corriger'}`,
+                `/requisitions/${requisitionId}`
+            );
+        }
+    } catch (notificationErr) {
+        console.error('Erreur lors de l\'envoi des notifications:', notificationErr);
+    }
+
     return { niveauAvant: currentNiveau, niveauApres };
+  }
+
+  /**
+   * Helper pour mapper un niveau de workflow à un rôle utilisateur
+   */
+  static getRoleForNiveau(niveau) {
+      const mapping = {
+          'analyste': 'analyste',
+          'challenger': 'challenger',
+          'validateur': 'validateur',
+          'gm': 'gm',
+          'compilation': 'compilateur',
+          'validation_bordereau': 'analyste',
+          'paiement': 'comptable',
+          'comptable': 'comptable'
+      };
+      return mapping[niveau];
   }
 
   // Vérifier et exécuter les validations automatiques
