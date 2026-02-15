@@ -1201,24 +1201,50 @@ const RequisitionAnalysis: React.FC = () => {
               .map((item, index) => {
                 const isMessage = 'message' in item && !('action' in item);
                 const isAction = 'action' in item;
-                
+                const isAutoValidation =
+                  isAction &&
+                  item.action === 'valider' &&
+                  typeof item.commentaire === 'string' &&
+                  item.commentaire.toLowerCase().includes('validation automatique');
+
                 return (
-                  <Box key={index} sx={{ mb: 2, display: 'flex', flexDirection: 'column', alignItems: isMessage && item.utilisateur_id === user?.id ? 'flex-end' : 'flex-start' }}>
-                    <Box sx={{ 
-                      maxWidth: '80%', 
-                      p: 2, 
-                      borderRadius: 2, 
-                      bgcolor: isAction ? 'warning.light' : (item.utilisateur_id === user?.id ? 'primary.light' : 'white'),
-                      boxShadow: 1
-                    }}>
-                      <Typography variant="subtitle2" color="text.secondary" sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                        <span>{item.utilisateur_nom || item.uploader_nom}</span>
+                  <Box
+                    key={index}
+                    sx={{
+                      mb: 2,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: isMessage && item.utilisateur_id === user?.id ? 'flex-end' : 'flex-start'
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        maxWidth: '80%',
+                        p: 2,
+                        borderRadius: 2,
+                        bgcolor: isAction
+                          ? isAutoValidation
+                            ? 'info.light'
+                            : 'warning.light'
+                          : item.utilisateur_id === user?.id
+                            ? 'primary.light'
+                            : 'white',
+                        boxShadow: 1
+                      }}
+                    >
+                      <Typography
+                        variant="subtitle2"
+                        color="text.secondary"
+                        sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}
+                      >
+                        <span>{item.utilisateur_nom || item.uploader_nom || (isAutoValidation ? 'Système' : '')}</span>
                         <span>{new Date(item.created_at).toLocaleString()}</span>
                       </Typography>
                       
                       {isAction && (
                         <Typography variant="body2" sx={{ fontWeight: 'bold', mt: 0.5 }}>
-                          Action: {item.action.toUpperCase()} {item.niveau_apres && `-> ${item.niveau_apres}`}
+                          Action: {item.action.toUpperCase()} {item.niveau_apres && `-> ${item.niveau_apres}`}{' '}
+                          {isAutoValidation && '• Validation automatique'}
                         </Typography>
                       )}
                       
