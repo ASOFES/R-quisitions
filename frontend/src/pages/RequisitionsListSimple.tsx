@@ -1252,18 +1252,29 @@ const RequisitionsList: React.FC = () => {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip 
-                        icon={statutConfig.icon || undefined}
-                        label={statutConfig.label} 
-                        size="small"
-                        sx={{ 
-                          bgcolor: alpha(statutConfig.color, 0.1), 
-                          color: statutConfig.color,
-                          fontWeight: 700,
-                          border: '1px solid',
-                          borderColor: alpha(statutConfig.color, 0.2)
-                        }} 
-                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip 
+                          icon={statutConfig.icon || undefined}
+                          label={statutConfig.label} 
+                          size="small"
+                          sx={{ 
+                            bgcolor: alpha(statutConfig.color, 0.1), 
+                            color: statutConfig.color,
+                            fontWeight: 700,
+                            border: '1px solid',
+                            borderColor: alpha(statutConfig.color, 0.2)
+                          }} 
+                        />
+                        {req.last_is_auto ? (
+                          <Chip 
+                            label="AUTO" 
+                            size="small" 
+                            color="info" 
+                            variant="outlined"
+                            sx={{ fontWeight: 700, height: 22 }}
+                          />
+                        ) : null}
+                      </Box>
                     </TableCell>
                     <TableCell>
                       <Chip 

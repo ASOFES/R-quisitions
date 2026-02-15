@@ -51,6 +51,7 @@ import RequisitionService from '../services/RequisitionService';
 import { servicesAPI, Service, sitesAPI, Site } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config';
+import { parseNum } from '../utils/number';
 
 interface FileAttachment {
   id: string;
@@ -89,13 +90,6 @@ export default function RequisitionForm() {
   const [services, setServices] = useState<Service[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [budgetDescriptions, setBudgetDescriptions] = useState<{description: string, is_manual: boolean}[]>([]);
-  const parseNum = (val: any): number => {
-    if (val === '' || val === undefined || val === null) return 0;
-    if (typeof val === 'number') return isNaN(val) ? 0 : val;
-    const strVal = String(val).replace(',', '.').trim();
-    const parsed = parseFloat(strVal);
-    return isNaN(parsed) ? 0 : parsed;
-  };
 
   const generalTotal = React.useMemo(() => {
     if (!items || items.length === 0) return 0;

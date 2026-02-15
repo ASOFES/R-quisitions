@@ -1203,9 +1203,10 @@ const RequisitionAnalysis: React.FC = () => {
                 const isAction = 'action' in item;
                 const isAutoValidation =
                   isAction &&
-                  item.action === 'valider' &&
-                  typeof item.commentaire === 'string' &&
-                  item.commentaire.toLowerCase().includes('validation automatique');
+                  (item.is_auto === true ||
+                   (item.action === 'valider' &&
+                    typeof item.commentaire === 'string' &&
+                    item.commentaire.toLowerCase().includes('validation automatique')));
 
                 return (
                   <Box

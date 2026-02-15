@@ -180,8 +180,20 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const user = req.user;
     let query = `
-      SELECT r.*, u.nom_complet as emetteur_nom, u.email as emetteur_email, u.role as emetteur_role, z.nom as emetteur_zone, s.code as service_code, s.nom as service_nom, s.chef_id as service_chef_id,
-             (SELECT COUNT(*) FROM pieces_jointes pj WHERE pj.requisition_id = r.id) as nb_pieces
+      SELECT r.*, 
+             u.nom_complet as emetteur_nom, 
+             u.email as emetteur_email, 
+             u.role as emetteur_role, 
+             z.nom as emetteur_zone, 
+             s.code as service_code, 
+             s.nom as service_nom, 
+             s.chef_id as service_chef_id,
+             (SELECT COUNT(*) FROM pieces_jointes pj WHERE pj.requisition_id = r.id) as nb_pieces,
+             (SELECT ra.is_auto 
+              FROM requisition_actions ra 
+              WHERE ra.requisition_id = r.id 
+              ORDER BY ra.created_at DESC 
+              LIMIT 1) AS last_is_auto
       FROM requisitions r
       LEFT JOIN users u ON r.emetteur_id = u.id
       LEFT JOIN zones z ON u.zone_id = z.id

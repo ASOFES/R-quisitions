@@ -171,7 +171,12 @@ function initializeDatabasePostgres() {
                         'ALTER TABLE budgets ADD COLUMN IF NOT EXISTS service_id INTEGER REFERENCES services(id)',
                         'ALTER TABLE budgets ADD CONSTRAINT unique_budget_service_mois UNIQUE (description, service_id, mois)',
                         'ALTER TABLE budgets ADD COLUMN IF NOT EXISTS is_manual BOOLEAN DEFAULT FALSE',
-                        'ALTER TABLE users ADD COLUMN IF NOT EXISTS signature_url VARCHAR(255)'
+                        'ALTER TABLE users ADD COLUMN IF NOT EXISTS signature_url VARCHAR(255)',
+                        'ALTER TABLE requisition_actions ADD COLUMN IF NOT EXISTS is_auto BOOLEAN DEFAULT FALSE',
+                        'CREATE INDEX IF NOT EXISTS idx_requisitions_status_level ON requisitions (statut, niveau)',
+                        'CREATE INDEX IF NOT EXISTS idx_requisitions_service ON requisitions (service_id)',
+                        'CREATE INDEX IF NOT EXISTS idx_requisitions_updated_at ON requisitions (updated_at)',
+                        'CREATE INDEX IF NOT EXISTS idx_actions_req_created ON requisition_actions (requisition_id, created_at)'
                     ];
 
                     // Exécuter les migrations en séquence
@@ -237,7 +242,8 @@ function runSqliteMigrations() {
         'ALTER TABLE requisitions ADD COLUMN mode_paiement VARCHAR(20)',
         'ALTER TABLE requisitions ADD COLUMN budget_impacted BOOLEAN DEFAULT 0',
         'ALTER TABLE budgets ADD COLUMN is_manual BOOLEAN DEFAULT 0',
-        'ALTER TABLE users ADD COLUMN signature_url VARCHAR(255)'
+        'ALTER TABLE users ADD COLUMN signature_url VARCHAR(255)',
+        'ALTER TABLE requisition_actions ADD COLUMN is_auto BOOLEAN DEFAULT 0'
     ];
 
     migrations.forEach(migration => {
@@ -296,6 +302,15 @@ function runSqliteMigrations() {
     extraTables.forEach(tableSql => {
         dbInstance.run(tableSql, () => {});
     });
+
+    // Indexes pour accélérer les listes/historiques
+    const indexStatements = [
+        'CREATE INDEX IF NOT EXISTS idx_requisitions_status_level ON requisitions (statut, niveau)',
+        'CREATE INDEX IF NOT EXISTS idx_requisitions_service ON requisitions (service_id)',
+        'CREATE INDEX IF NOT EXISTS idx_requisitions_updated_at ON requisitions (updated_at)',
+        'CREATE INDEX IF NOT EXISTS idx_actions_req_created ON requisition_actions (requisition_id, created_at)'
+    ];
+    indexStatements.forEach(sql => dbInstance.run(sql, () => {}));
 
     // Default zones
     dbInstance.get('SELECT count(*) as count FROM zones', [], (err, row) => {

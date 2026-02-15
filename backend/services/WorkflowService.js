@@ -224,10 +224,18 @@ class WorkflowService {
     }
 
     // Enregistrer l'historique
-    await dbUtils.run(
-        'INSERT INTO requisition_actions (requisition_id, utilisateur_id, action, commentaire, niveau_avant, niveau_apres) VALUES (?, ?, ?, ?, ?, ?)',
-        [requisitionId, userId || null, action, commentaire, currentNiveau, niveauApres]
-    );
+    try {
+        await dbUtils.run(
+            'INSERT INTO requisition_actions (requisition_id, utilisateur_id, action, commentaire, niveau_avant, niveau_apres, is_auto) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [requisitionId, userId || null, action, commentaire, currentNiveau, niveauApres, !!isAuto]
+        );
+    } catch (e) {
+        // Rétrocompatibilité si colonne absente (avant migration): insérer sans is_auto
+        await dbUtils.run(
+            'INSERT INTO requisition_actions (requisition_id, utilisateur_id, action, commentaire, niveau_avant, niveau_apres) VALUES (?, ?, ?, ?, ?, ?)',
+            [requisitionId, userId || null, action, commentaire, currentNiveau, niveauApres]
+        );
+    }
 
     // --- ENVOI DES NOTIFICATIONS PUSH ---
     try {
