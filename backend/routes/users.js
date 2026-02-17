@@ -2,8 +2,11 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { dbUtils } = require('../database/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const multer = require('multer');
+const StorageService = require('../services/StorageService');
 
 const router = express.Router();
+const upload = multer();
 
 // Obtenir tous les utilisateurs (admin seulement)
 router.get('/', authenticateToken, requireRole(['admin']), async (req, res) => {
@@ -164,6 +167,24 @@ router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res
     res.json({ message: 'Utilisateur supprimé définitivement' });
   } catch (error) {
     console.error('Erreur lors de la désactivation de l\'utilisateur:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Mettre à jour la signature de l'utilisateur connecté
+router.post('/me/signature', authenticateToken, upload.single('file'), async (req, res) => {
+  try {
+    const user = req.user;
+    if (!req.file) {
+      return res.status(400).json({ error: 'Fichier de signature manquant' });
+    }
+    // Upload via StorageService (Supabase ou local)
+    const uploadResult = await StorageService.uploadFile(req.file);
+    // Enregistrer le chemin de la signature
+    await dbUtils.run('UPDATE users SET signature_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [uploadResult.filename, user.id]);
+    res.json({ message: 'Signature mise à jour', filename: uploadResult.filename });
+  } catch (error) {
+    console.error('Erreur mise à jour signature:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

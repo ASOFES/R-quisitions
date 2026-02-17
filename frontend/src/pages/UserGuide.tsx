@@ -133,6 +133,49 @@ const UserGuide: React.FC = () => {
         </Typography>
       </Box>
 
+      <Paper variant="outlined" sx={{ p: 3, mb: 4, borderRadius: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+          Nouveautés et bonnes pratiques
+        </Typography>
+        <List dense>
+          <ListItem sx={{ px: 0 }}>
+            <ListItemIcon sx={{ minWidth: 30 }}><CheckIcon color="info" /></ListItemIcon>
+            <ListItemText
+              primary="Marqueur « AUTO » sur la liste"
+              secondary="Lorsqu’une étape est validée automatiquement (délai dépassé), un Chip AUTO apparaît à côté du statut."
+            />
+          </ListItem>
+          <ListItem sx={{ px: 0 }}>
+            <ListItemIcon sx={{ minWidth: 30 }}><CheckIcon color="info" /></ListItemIcon>
+            <ListItemText
+              primary="Historique enrichi"
+              secondary="Les validations automatiques sont clairement indiquées comme telles dans l’historique de la réquisition."
+            />
+          </ListItem>
+          <ListItem sx={{ px: 0 }}>
+            <ListItemIcon sx={{ minWidth: 30 }}><CheckIcon color="success" /></ListItemIcon>
+            <ListItemText
+              primary="Calculs fiables des totaux"
+              secondary="La saisie accepte virgule ou point. Le montant total du formulaire se met à jour automatiquement."
+            />
+          </ListItem>
+          <ListItem sx={{ px: 0 }}>
+            <ListItemIcon sx={{ minWidth: 30 }}><CheckIcon color="secondary" /></ListItemIcon>
+            <ListItemText
+              primary="Notifications push"
+              secondary="Une notification est envoyée aux rôles concernés à chaque progression importante du workflow."
+            />
+          </ListItem>
+          <ListItem sx={{ px: 0 }}>
+            <ListItemIcon sx={{ minWidth: 30 }}><CheckIcon color="warning" /></ListItemIcon>
+            <ListItemText
+              primary="Paramétrage des délais d’auto-validation"
+              secondary="Dans les paramètres, définissez un délai par niveau pour déclencher automatiquement la validation lorsque la file est bloquée."
+            />
+          </ListItem>
+        </List>
+      </Paper>
+
       <Grid container spacing={4}>
         {roles.map((role, index) => (
           <Grid size={{ xs: 12, md: 6 }} key={index}>

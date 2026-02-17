@@ -424,7 +424,7 @@ router.get('/by-number/:number', authenticateToken, async (req, res) => {
 
     // Récupérer les actions
     const actions = await dbUtils.all(`
-      SELECT ra.*, u.nom_complet as utilisateur_nom
+      SELECT ra.*, u.nom_complet as utilisateur_nom, u.signature_url as utilisateur_signature
       FROM requisition_actions ra
       LEFT JOIN users u ON ra.utilisateur_id = u.id
       WHERE ra.requisition_id = ?

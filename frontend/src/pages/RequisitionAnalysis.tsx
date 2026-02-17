@@ -1249,6 +1249,20 @@ const RequisitionAnalysis: React.FC = () => {
                         </Typography>
                       )}
                       
+                      {isAction && item.action === 'valider' && item.utilisateur_signature && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                            Signature
+                          </Typography>
+                          <Box
+                            component="img"
+                            src={`${API_BASE_URL}/uploads/${item.utilisateur_signature}`}
+                            alt="Signature"
+                            sx={{ maxHeight: 60, maxWidth: 200, objectFit: 'contain' }}
+                          />
+                        </Box>
+                      )}
+                      
                       <Typography variant="body1" sx={{ mt: 0.5 }}>
                         {isMessage ? item.message : item.commentaire}
                       </Typography>

@@ -307,7 +307,7 @@ class PdfService {
 
             // --- VALIDATION HISTORY (TABLE) ---
             const actions = await dbUtils.all(`
-                SELECT ra.*, u.nom_complet as utilisateur_nom, u.role as utilisateur_role
+                SELECT ra.*, u.nom_complet as utilisateur_nom, u.role as utilisateur_role, u.signature_url as utilisateur_signature
                 FROM requisition_actions ra
                 LEFT JOIN users u ON ra.utilisateur_id = u.id
                 WHERE ra.requisition_id = ?
@@ -366,6 +366,74 @@ class PdfService {
                     y -= 12;
                 }
                 y -= 20;
+
+                // --- SIGNATURES D'APPROBATION ---
+                // Récupérer la dernière action "valider" pour chaque rôle cible
+                const getLastSignatureByRole = (roles) => {
+                    for (let i = actions.length - 1; i >= 0; i--) {
+                        const a = actions[i];
+                        if (a.action === 'valider' && roles.includes(String(a.utilisateur_role).toLowerCase())) {
+                            return a.utilisateur_signature || null;
+                        }
+                    }
+                    return null;
+                };
+
+                const sigPM = getLastSignatureByRole(['validateur', 'pm']);
+                const sigGM = getLastSignatureByRole(['gm']);
+                const sigComptable = getLastSignatureByRole(['comptable']);
+
+                const anySig = sigPM || sigGM || sigComptable;
+                if (anySig) {
+                    y = checkPageBreak(y, 140);
+                    page.drawText('SIGNATURES D’APPROBATION', { x: margin, y, size: 11, font: boldFont, color: colors.primary });
+                    y -= 15;
+
+                    const boxW = (contentWidth - 20) / 3;
+                    const boxH = 90;
+                    const boxes = [
+                        { label: 'PM / VALIDATEUR', sig: sigPM, x: margin, y },
+                        { label: 'GM', sig: sigGM, x: margin + boxW + 10, y },
+                        { label: 'COMPTABLE', sig: sigComptable, x: margin + (boxW + 10) * 2, y }
+                    ];
+
+                    for (const b of boxes) {
+                        // Cadre
+                        page.drawRectangle({
+                            x: b.x,
+                            y: b.y - boxH,
+                            width: boxW,
+                            height: boxH,
+                            color: colors.secondary,
+                            borderColor: colors.border,
+                            borderWidth: 1
+                        });
+                        page.drawText(b.label, { x: b.x + 8, y: b.y - 16, size: 9, font: boldFont, color: colors.primary });
+
+                        if (b.sig) {
+                            try {
+                                const bytes = await StorageService.getFileBuffer(b.sig);
+                                // Essayer PNG puis JPG
+                                let img;
+                                const ext = path.extname(String(b.sig)).toLowerCase();
+                                if (ext === '.png') img = await mergedPdf.embedPng(bytes);
+                                else img = await mergedPdf.embedJpg(bytes);
+                                const dims = img.scaleToFit(boxW - 16, boxH - 30);
+                                page.drawImage(img, {
+                                    x: b.x + (boxW - dims.width) / 2,
+                                    y: (b.y - boxH) + 8,
+                                    width: dims.width,
+                                    height: dims.height
+                                });
+                            } catch (e) {
+                                page.drawText('Signature indisponible', { x: b.x + 8, y: (b.y - boxH) + 40, size: 9, font, color: colors.accent });
+                            }
+                        } else {
+                            page.drawText('Signature non fournie', { x: b.x + 8, y: (b.y - boxH) + 40, size: 9, font, color: colors.grayText });
+                        }
+                    }
+                    y -= (boxH + 25);
+                }
             }
 
             // --- ATTACHMENTS ---
